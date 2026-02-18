@@ -2,15 +2,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../state/game_state.dart';
 import '../../../core/utils/time_format.dart';
+import '../../../state/game_state.dart';
+import '../../../state/settings_state.dart';
 import 'victory_screen.dart';
 
 class FocusSessionScreen extends StatefulWidget {
   final Duration duration;
   final String? debugLabel;
+  final FocusDisplayMode displayMode;
 
-  const FocusSessionScreen({super.key, required this.duration, this.debugLabel});
+  const FocusSessionScreen({
+    super.key,
+    required this.duration,
+    required this.displayMode,
+    this.debugLabel,
+  });
 
   @override
   State<FocusSessionScreen> createState() => _FocusSessionScreenState();
@@ -24,6 +31,7 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
   void initState() {
     super.initState();
     _remainingSeconds = widget.duration.inSeconds;
+
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (!mounted) return;
       setState(() => _remainingSeconds--);
@@ -70,24 +78,33 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
         ],
       ),
     );
+    if (!mounted) return;
+
     if (ok == true) Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
+    final isOledSafe = widget.displayMode == FocusDisplayMode.oledSafe;
+
     final total = widget.duration.inSeconds;
     final remaining = _remainingSeconds.clamp(0, total);
     final progress = total == 0 ? 1.0 : 1.0 - (remaining / total);
 
     return Scaffold(
+      backgroundColor: isOledSafe ? Colors.black : null,
       appBar: AppBar(
+        backgroundColor: isOledSafe ? Colors.black : null,
         title: Text(widget.debugLabel ?? 'Focus Session'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: _confirmCancel,
         ),
       ),
-      body: Padding(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        color: isOledSafe ? Colors.black : Colors.transparent,
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
@@ -96,25 +113,34 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1F1F1F),
+                color: isOledSafe ? const Color(0xFF0B0B0B) : const Color(0xFF1F1F1F),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFF333333)),
+                border: Border.all(color: isOledSafe ? const Color(0xFF1A1A1A) : const Color(0xFF333333)),
               ),
               child: Column(
                 children: [
-                  const Text(
-                    'Rimani concentrato.',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                  Text(
+                    isOledSafe ? 'Modalità protetta attiva.' : 'Rimani concentrato.',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     formatSeconds(remaining),
-                    style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      fontSize: 44,
+                      fontWeight: FontWeight.w900,
+                      color: isOledSafe ? Colors.white70 : Colors.white,
+                    ),
                   ),
                   const SizedBox(height: 10),
                   LinearProgressIndicator(value: progress),
                   const SizedBox(height: 10),
-                  const Text('La NavBar è nascosta: modalità focus.', style: TextStyle(color: Colors.white70)),
+                  Text(
+                    isOledSafe
+                        ? 'Schermo scuro per ridurre il rischio di immagini persistenti.'
+                        : 'La NavBar è nascosta: modalità focus.',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
                 ],
               ),
             ),

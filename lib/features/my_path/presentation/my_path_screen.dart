@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../state/game_state.dart';
 import '../../../core/widgets/pixel_panel.dart';
+import '../../../state/game_state.dart';
+import '../../../state/settings_state.dart';
+
 import 'focus_session_screen.dart';
+import '../../../core/widgets/oled_safe_toggle.dart';
 
 class MyPathScreen extends StatelessWidget {
   const MyPathScreen({super.key});
@@ -11,51 +14,88 @@ class MyPathScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gs = context.watch<GameState>();
+    final settings = context.watch<SettingsState>();
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          _HeroCard(equipped: gs.equipped),
-          const SizedBox(height: 16),
+    final isOledSafe = settings.isOledSafe;
 
-          _TimerPresetRow(
-            onStart: (d) {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => FocusSessionScreen(duration: d)),
-              );
-            },
-          ),
+    // Transizione smooth: sfondo più nero + pannelli più “deep black”.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 350),
+      curve: Curves.easeOutCubic,
+      color: isOledSafe ? Colors.black : const Color(0xFF141414),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _HeroCard(equipped: gs.equipped, isOledSafe: isOledSafe),
+            const SizedBox(height: 12),
 
-          const SizedBox(height: 16),
-          const PixelPanel(
-            child: Text(
-              'Flusso base:\nFocus → Vittoria (+Ferro) → Forge (craft) → Equip (indossa).',
-              style: TextStyle(color: Colors.white70, height: 1.35),
-            ),
-          ),
-          const Spacer(),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const FocusSessionScreen(
-                          duration: Duration(seconds: 15),
-                          debugLabel: 'Quick Test',
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.bolt),
-                  label: const Text('Quick Test (15s)'),
+            PixelPanel(
+              backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
+              borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
+              child: OledSafeToggle(
+                value: isOledSafe,
+                onChanged: (v) => settings.setFocusDisplayMode(
+                  v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
                 ),
               ),
-            ],
-          )
-        ],
+            ),
+
+            const SizedBox(height: 16),
+
+            _TimerPresetRow(
+              onStart: (d) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FocusSessionScreen(
+                      duration: d,
+                      displayMode: settings.focusDisplayMode,
+                    ),
+                  ),
+                );
+              },
+            ),
+
+            const SizedBox(height: 16),
+
+            PixelPanel(
+              backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
+              borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: isOledSafe ? 0.85 : 1,
+                child: const Text(
+                  'Flusso base:\nFocus → Vittoria (+Ferro) → Forge (craft) → Equip (indossa).',
+                  style: TextStyle(color: Colors.white70, height: 1.35),
+                ),
+              ),
+            ),
+
+            const Spacer(),
+
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => FocusSessionScreen(
+                            duration: const Duration(seconds: 15),
+                            debugLabel: 'Quick Test',
+                            displayMode: settings.focusDisplayMode,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.bolt),
+                    label: const Text('Quick Test (15s)'),
+                  ),
+                ),
+              ],
+            )
+          ],
+        ),
       ),
     );
   }
@@ -63,23 +103,30 @@ class MyPathScreen extends StatelessWidget {
 
 class _HeroCard extends StatelessWidget {
   final GameItem? equipped;
-  const _HeroCard({required this.equipped});
+  final bool isOledSafe;
+
+  const _HeroCard({required this.equipped, required this.isOledSafe});
 
   @override
   Widget build(BuildContext context) {
     final eqName = equipped?.name ?? 'Nessun equip';
+
     return PixelPanel(
+      backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
+      borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
       child: Row(
         children: [
-          Container(
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 350),
+            curve: Curves.easeOutCubic,
             width: 76,
             height: 76,
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A2A),
+              color: isOledSafe ? Colors.black : const Color(0xFF2A2A2A),
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFF3A3A3A)),
+              border: Border.all(color: isOledSafe ? const Color(0xFF1A1A1A) : const Color(0xFF3A3A3A)),
             ),
-            child: const Icon(Icons.person, size: 36),
+            child: Icon(Icons.person, size: 36, color: isOledSafe ? Colors.white70 : Colors.white),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -90,7 +137,10 @@ class _HeroCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text('Equip: $eqName', style: const TextStyle(color: Colors.white70)),
                 const SizedBox(height: 8),
-                const Text('Il tuo eroe è pronto a concentrarsi.', style: TextStyle(color: Colors.white60)),
+                Text(
+                  isOledSafe ? 'Modalità protetta attiva.' : 'Il tuo eroe è pronto a concentrarsi.',
+                  style: const TextStyle(color: Colors.white60),
+                ),
               ],
             ),
           )
