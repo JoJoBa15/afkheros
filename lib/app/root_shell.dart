@@ -53,10 +53,29 @@ class _RootShellState extends State<RootShell> {
           SizedBox(width: 8),
         ],
       ),
-      body: IndexedStack(
-        index: _index,
-        children: _tabs,
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 350),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          // Fade + piccolo slide (effetto moderno, non invasivo)
+          final fade = FadeTransition(opacity: animation, child: child);
+          final offsetTween = Tween<Offset>(
+            begin: const Offset(0.02, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return SlideTransition(position: offsetTween, child: fade);
+        },
+        // Chiave diversa per ogni index => AnimatedSwitcher capisce quando cambiare
+        child: KeyedSubtree(
+          key: ValueKey(_index),
+          child: IndexedStack(
+            index: _index,
+            children: _tabs,
+          ),
+        ),
       ),
+
       bottomNavigationBar: PixelBottomNavBar(
         currentIndex: _index,
         onChanged: (i) => setState(() => _index = i),
