@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -25,7 +26,10 @@ class FocusSessionScreen extends StatefulWidget {
 
 class _FocusSessionScreenState extends State<FocusSessionScreen> {
   Timer? _timer;
+  Timer? _pixelShiftTimer;
   late int _remainingSeconds;
+  double _x = 0;
+  double _y = 0;
 
   @override
   void initState() {
@@ -40,11 +44,23 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
         _finish();
       }
     });
+
+    if (widget.displayMode == FocusDisplayMode.oledSafe) {
+      _pixelShiftTimer = Timer.periodic(const Duration(seconds: 30), (_) {
+        if (!mounted) return;
+        final random = Random();
+        setState(() {
+          _x = (random.nextDouble() * 10) - 5;
+          _y = (random.nextDouble() * 10) - 5;
+        });
+      });
+    }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _pixelShiftTimer?.cancel();
     super.dispose();
   }
 
@@ -109,39 +125,42 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isOledSafe ? const Color(0xFF0B0B0B) : const Color(0xFF1F1F1F),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: isOledSafe ? const Color(0xFF1A1A1A) : const Color(0xFF333333)),
-              ),
-              child: Column(
-                children: [
-                  Text(
-                    isOledSafe ? 'Modalità protetta attiva.' : 'Rimani concentrato.',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    formatSeconds(remaining),
-                    style: TextStyle(
-                      fontSize: 44,
-                      fontWeight: FontWeight.w900,
-                      color: isOledSafe ? Colors.white70 : Colors.white,
+            Transform.translate(
+              offset: Offset(_x, _y),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isOledSafe ? const Color(0xFF0B0B0B) : const Color(0xFF1F1F1F),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isOledSafe ? const Color(0xFF1A1A1A) : const Color(0xFF333333)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      isOledSafe ? 'Modalità protetta attiva.' : 'Rimani concentrato.',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  LinearProgressIndicator(value: progress),
-                  const SizedBox(height: 10),
-                  Text(
-                    isOledSafe
-                        ? 'Schermo scuro per ridurre il rischio di immagini persistenti.'
-                        : 'La NavBar è nascosta: modalità focus.',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                ],
+                    const SizedBox(height: 10),
+                    Text(
+                      formatSeconds(remaining),
+                      style: TextStyle(
+                        fontSize: 44,
+                        fontWeight: FontWeight.w900,
+                        color: isOledSafe ? Colors.white70 : Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    LinearProgressIndicator(value: progress),
+                    const SizedBox(height: 10),
+                    Text(
+                      isOledSafe
+                          ? 'Schermo scuro per ridurre il rischio di immagini persistenti.'
+                          : 'La NavBar è nascosta: modalità focus.',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
             ),
             const Spacer(),
