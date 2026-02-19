@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../core/widgets/pixel_panel.dart';
 import '../../../state/game_state.dart';
 import '../../../state/settings_state.dart';
+import '../../../core/widgets/my_path_background.dart';
 
 import 'focus_session_screen.dart';
 import '../../../core/widgets/oled_safe_toggle.dart';
@@ -15,87 +16,88 @@ class MyPathScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final gs = context.watch<GameState>();
     final settings = context.watch<SettingsState>();
-
     final isOledSafe = settings.isOledSafe;
 
-    // Transizione smooth: sfondo più nero + pannelli più “deep black”.
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-      color: isOledSafe ? Colors.black : const Color(0xFF141414),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _HeroCard(equipped: gs.equipped, isOledSafe: isOledSafe),
-            const SizedBox(height: 12),
+    return Scaffold(
+      body: Stack(
+        children: [
+          const MyPathBackground(),
+          // ...qui sopra il resto della UI
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                _HeroCard(equipped: gs.equipped, isOledSafe: isOledSafe),
+                const SizedBox(height: 12),
 
-            PixelPanel(
-              backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
-              borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
-              child: OledSafeToggle(
-                value: isOledSafe,
-                onChanged: (v) => settings.setFocusDisplayMode(
-                  v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            _TimerPresetRow(
-              onStart: (d) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => FocusSessionScreen(
-                      duration: d,
-                      displayMode: settings.focusDisplayMode,
+                PixelPanel(
+                  backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
+                  borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
+                  child: OledSafeToggle(
+                    value: isOledSafe,
+                    onChanged: (v) => settings.setFocusDisplayMode(
+                      v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
                     ),
                   ),
-                );
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            PixelPanel(
-              backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
-              borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 300),
-                opacity: isOledSafe ? 0.85 : 1,
-                child: const Text(
-                  'Flusso base:\nFocus → Vittoria (+Ferro) → Forge (craft) → Equip (indossa).',
-                  style: TextStyle(color: Colors.white70, height: 1.35),
                 ),
-              ),
-            ),
 
-            const Spacer(),
+                const SizedBox(height: 16),
 
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => FocusSessionScreen(
-                            duration: const Duration(seconds: 15),
-                            debugLabel: 'Quick Test',
-                            displayMode: settings.focusDisplayMode,
-                          ),
+                _TimerPresetRow(
+                  onStart: (d) {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => FocusSessionScreen(
+                          duration: d,
+                          displayMode: settings.focusDisplayMode,
                         ),
-                      );
-                    },
-                    icon: const Icon(Icons.bolt),
-                    label: const Text('Quick Test (15s)'),
+                      ),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                PixelPanel(
+                  backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
+                  borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 300),
+                    opacity: isOledSafe ? 0.85 : 1,
+                    child: const Text(
+                      'Flusso base:\nFocus → Vittoria (+Ferro) → Forge (craft) → Equip (indossa).',
+                      style: TextStyle(color: Colors.white70, height: 1.35),
+                    ),
                   ),
                 ),
+
+                const Spacer(),
+
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => FocusSessionScreen(
+                                duration: const Duration(seconds: 15),
+                                debugLabel: 'Quick Test',
+                                displayMode: settings.focusDisplayMode,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.bolt),
+                        label: const Text('Quick Test (15s)'),
+                      ),
+                    ),
+                  ],
+                )
               ],
-            )
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
