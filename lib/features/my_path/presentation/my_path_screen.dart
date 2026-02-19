@@ -1,100 +1,40 @@
+
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../../core/widgets/pixel_panel.dart';
-import '../../../state/game_state.dart';
-import '../../../state/settings_state.dart';
 import '../../../core/widgets/my_path_background.dart';
-
+import '../../../state/settings_state.dart';
 import 'focus_session_screen.dart';
-import '../../../core/widgets/oled_safe_toggle.dart';
 
 class MyPathScreen extends StatelessWidget {
   const MyPathScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final gs = context.watch<GameState>();
-    final settings = context.watch<SettingsState>();
-    final isOledSafe = settings.isOledSafe;
-
+    // Scaffold funge da contenitore radice per la schermata.
+    // L'uso di `extendBodyBehindAppBar` e `appBar` trasparente
+    // permette al body (lo Stack) di occupare l'intera area dello schermo.
     return Scaffold(
-      body: Stack(
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        // Inseriamo l'header personalizzato qui per allinearlo correttamente
+        // con la safe area superiore e lasciare il corpo dello Stack sotto.
+        title: const _Header(),
+      ),
+      body: const Stack(
         children: [
-          const MyPathBackground(),
-          // ...qui sopra il resto della UI
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _HeroCard(equipped: gs.equipped, isOledSafe: isOledSafe),
-                const SizedBox(height: 12),
-
-                PixelPanel(
-                  backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
-                  borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
-                  child: OledSafeToggle(
-                    value: isOledSafe,
-                    onChanged: (v) => settings.setFocusDisplayMode(
-                      v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                _TimerPresetRow(
-                  onStart: (d) {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FocusSessionScreen(
-                          duration: d,
-                          displayMode: settings.focusDisplayMode,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                PixelPanel(
-                  backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
-                  borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 300),
-                    opacity: isOledSafe ? 0.85 : 1,
-                    child: const Text(
-                      'Flusso base:\nFocus → Vittoria (+Ferro) → Forge (craft) → Equip (indossa).',
-                      style: TextStyle(color: Colors.white70, height: 1.35),
-                    ),
-                  ),
-                ),
-
-                const Spacer(),
-
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => FocusSessionScreen(
-                                duration: const Duration(seconds: 15),
-                                debugLabel: 'Quick Test',
-                                displayMode: settings.focusDisplayMode,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.bolt),
-                        label: const Text('Quick Test (15s)'),
-                      ),
-                    ),
-                  ],
-                )
-              ],
+          // 1. Sfondo dinamico che copre l'intera area.
+          MyPathBackground(),
+          // 2. Pulsante principale posizionato in basso al centro.
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Padding(
+              padding: EdgeInsets.only(bottom: 48.0),
+              child: _FocusButton(),
             ),
           ),
         ],
@@ -103,99 +43,210 @@ class MyPathScreen extends StatelessWidget {
   }
 }
 
-class _HeroCard extends StatelessWidget {
-  final GameItem? equipped;
-  final bool isOledSafe;
-
-  const _HeroCard({required this.equipped, required this.isOledSafe});
+/// Header della schermata, contiene avatar (con menu) e valute.
+class _Header extends StatelessWidget {
+  const _Header();
 
   @override
   Widget build(BuildContext context) {
-    final eqName = equipped?.name ?? 'Nessun equip';
+    final settings = context.watch<SettingsState>();
 
-    return PixelPanel(
-      backgroundColor: isOledSafe ? const Color(0xFF0B0B0B) : null,
-      borderColor: isOledSafe ? const Color(0xFF1A1A1A) : null,
-      child: Row(
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 350),
-            curve: Curves.easeOutCubic,
-            width: 76,
-            height: 76,
-            decoration: BoxDecoration(
-              color: isOledSafe ? Colors.black : const Color(0xFF2A2A2A),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: isOledSafe ? const Color(0xFF1A1A1A) : const Color(0xFF3A3A3A)),
-            ),
-            child: Icon(Icons.person, size: 36, color: isOledSafe ? Colors.white70 : Colors.white),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('My Path', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 6),
-                Text('Equip: $eqName', style: const TextStyle(color: Colors.white70)),
-                const SizedBox(height: 8),
-                Text(
-                  isOledSafe ? 'Modalità protetta attiva.' : 'Il tuo eroe è pronto a concentrarsi.',
-                  style: const TextStyle(color: Colors.white60),
-                ),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-class _TimerPresetRow extends StatelessWidget {
-  final void Function(Duration) onStart;
-  const _TimerPresetRow({required this.onStart});
-
-  @override
-  Widget build(BuildContext context) {
+    // Usiamo una Row per disporre gli elementi orizzontalmente.
     return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Expanded(
-          child: _PresetButton(
-            label: '25 min',
-            icon: Icons.play_arrow,
-            onTap: () => onStart(const Duration(minutes: 25)),
+        // Pulsante Popup per il menu utente.
+        PopupMenuButton<int>(
+          onSelected: (value) {
+            // Gestisce la selezione dal menu.
+            if (value == 0) {
+              // Inverte la modalità OLED-safe.
+              settings.setFocusDisplayMode(
+                settings.isOledSafe
+                    ? FocusDisplayMode.normal
+                    : FocusDisplayMode.oledSafe,
+              );
+            }
+          },
+          // Stile del pulsante Popup: avatar più grande e personalizzato.
+          child: const CircleAvatar(
+            radius: 28, // Raggio più grande
+            backgroundColor: Colors.white24,
+            child: Icon(Icons.person_outline, size: 32, color: Colors.white),
           ),
+          // Costruttore degli item del menu.
+          itemBuilder: (context) => [
+            CheckedPopupMenuItem<int>(
+              value: 0,
+              checked: settings.isOledSafe,
+              child: const Text('Modalità OLED-safe'),
+            ),
+            // Qui si possono aggiungere altri item in futuro.
+            const PopupMenuDivider(),
+            const PopupMenuItem<int>(
+              value: 1,
+              child: Text('Impostazioni'), // Esempio
+            ),
+          ],
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: _PresetButton(
-            label: '45 min',
-            icon: Icons.play_arrow,
-            onTap: () => onStart(const Duration(minutes: 45)),
-          ),
+
+        // Placeholder per le valute del giocatore.
+        // TODO: Collegare ai dati reali dello stato del gioco.
+        const Row(
+          children: [
+            Icon(Icons.shield, color: Colors.orange, size: 18),
+            SizedBox(width: 4),
+            Text('100', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(width: 16),
+            Icon(Icons.star, color: Colors.yellow, size: 18),
+            SizedBox(width: 4),
+            Text('50', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
         ),
       ],
     );
   }
 }
 
-class _PresetButton extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
+/// Pulsante "Concentrati!" con sfondo sfocato.
+class _FocusButton extends StatelessWidget {
+  const _FocusButton();
 
-  const _PresetButton({required this.label, required this.icon, required this.onTap});
+  // Mostra il selettore di durata in un pannello modale.
+  void _showDurationPicker(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent, // Sfondo trasparente per il blur
+      builder: (_) => const _DurationPicker(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon),
-      label: Text('Inizia ($label)'),
-      style: ElevatedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+    // `ClipRRect` è necessario per applicare l'arrotondamento dei bordi
+    // al `BackdropFilter`.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(50),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: InkWell(
+          // Utilizziamo InkWell per l'effetto ripple al tocco.
+          onTap: () => _showDurationPicker(context),
+          borderRadius: BorderRadius.circular(50),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(50),
+              border: Border.all(color: Colors.white.withOpacity(0.25)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.timer_outlined, color: Colors.white),
+                SizedBox(width: 12),
+                Text(
+                  'Concentrati!',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Pannello modale per la selezione della durata della sessione.
+class _DurationPicker extends StatelessWidget {
+  const _DurationPicker();
+
+  // Funzione per avviare la sessione di focus e chiudere il pannello.
+  void _startSession(BuildContext context, Duration duration) {
+    final settings = context.read<SettingsState>();
+    Navigator.of(context).pop(); // Chiude il bottom sheet
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => FocusSessionScreen(
+          duration: duration,
+          displayMode: settings.focusDisplayMode,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Lista delle durate predefinite.
+    const durations = [
+      Duration(minutes: 15),
+      Duration(minutes: 25),
+      Duration(minutes: 45),
+      Duration(minutes: 60),
+    ];
+
+    // Utilizziamo anche qui il BackdropFilter per coerenza stilistica.
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.4),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(28),
+            topRight: Radius.circular(28),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Per quanto tempo?',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            // Griglia di pulsanti per la selezione della durata.
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.5, // Rapporto per pulsanti più larghi
+              children: durations.map((d) {
+                return ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white.withOpacity(0.2),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  onPressed: () => _startSession(context, d),
+                  child: Text('${d.inMinutes} minuti', style: const TextStyle(fontSize: 16)),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'Annulla',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
