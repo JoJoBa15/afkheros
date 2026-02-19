@@ -13,7 +13,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => SettingsState()),
       ],
       child: const AfkHeroApp(),
-  ),
-);
+    ),
+  );
 
 }
