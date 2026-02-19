@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -50,7 +52,7 @@ class _RootShellState extends State<RootShell> {
         switchOutCurve: Curves.easeInCubic,
         transitionBuilder: (child, animation) {
           final fade = FadeTransition(opacity: animation, child: child);
-          final offsetTween = Tween(
+          final offsetTween = Tween<Offset>(
             begin: const Offset(0.02, 0),
             end: Offset.zero,
           ).animate(animation);
@@ -110,10 +112,7 @@ class _RootShellState extends State<RootShell> {
 
       automaticallyImplyLeading: false,
       titleSpacing: 0,
-
-      // più compatto (meno fascia nera sopra)
       toolbarHeight: 72,
-
       title: const _MyPathAppBarContent(),
     );
   }
@@ -122,39 +121,34 @@ class _RootShellState extends State<RootShell> {
 class _MyPathAppBarContent extends StatelessWidget {
   const _MyPathAppBarContent();
 
+  void _openMyPathMenu(BuildContext context) {
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Menu',
+      barrierColor: Colors.transparent, // lo gestiamo noi nel blur overlay
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (_, __, ___) => const SizedBox.shrink(),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return _MyPathMenuOverlay(progress: curved);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final settings = context.watch<SettingsState>();
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Row(
         children: [
-          PopupMenuButton<int>(
-            onSelected: (value) {
-              if (value == 0) {
-                settings.setFocusDisplayMode(
-                  settings.isOledSafe
-                      ? FocusDisplayMode.normal
-                      : FocusDisplayMode.oledSafe,
-                );
-              }
-            },
-            itemBuilder: (context) => [
-              CheckedPopupMenuItem(
-                value: 0,
-                checked: settings.isOledSafe,
-                child: const Text('Modalità OLED-safe'),
-              ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 1,
-                enabled: false,
-                child: Text('Impostazioni'),
-              ),
-            ],
-
-            // ✅ USER BUTTON più grande
+          InkWell(
+            onTap: () => _openMyPathMenu(context),
+            borderRadius: BorderRadius.circular(999),
             child: Container(
               width: 56,
               height: 56,
@@ -173,10 +167,363 @@ class _MyPathAppBarContent extends StatelessWidget {
               ),
             ),
           ),
-
           const Spacer(),
           const CurrenciesBar(),
         ],
+      ),
+    );
+  }
+}
+
+class _MyPathMenuOverlay extends StatelessWidget {
+  final Animation<double> progress;
+  const _MyPathMenuOverlay({required this.progress});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      type: MaterialType.transparency,
+      child: AnimatedBuilder(
+        animation: progress,
+        builder: (context, _) {
+          final v = progress.value;
+
+          // Blur e dim più morbidi (meno “nero”)
+          final sigma = 14.0 * v;
+          final dim = 0.30 * v;
+
+          // Card animata separatamente
+          final scale = 0.965 + (1.0 - 0.965) * v;
+
+          return SizedBox.expand(
+            child: Stack(
+              children: [
+                // ✅ FIX bande laterali: ClipRect + BackdropFilter full-screen
+                Positioned.fill(
+                  child: ClipRect(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => Navigator.of(context).pop(),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+                        child: Container(color: Colors.black.withOpacity(dim)),
+                      ),
+                    ),
+                  ),
+                ),
+
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: v,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 380),
+                          child: _MyPathMenuCard(
+                            onClose: () => Navigator.of(context).pop(),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MyPathMenuCard extends StatelessWidget {
+  final VoidCallback onClose;
+  const _MyPathMenuCard({required this.onClose});
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<SettingsState>(
+      builder: (context, settings, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(28),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withOpacity(0.14)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.22),
+                    blurRadius: 34,
+                    spreadRadius: 2,
+                    offset: const Offset(0, 18),
+                  ),
+                ],
+                // ✅ più moderno / meno nero: glass scuro “blu-grigio”
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    const Color(0xFF2F3A46).withOpacity(0.62),
+                    const Color(0xFF15181D).withOpacity(0.66),
+                  ],
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.10),
+                          border: Border.all(color: Colors.white.withOpacity(0.14)),
+                        ),
+                        child: const Icon(Icons.person_outline,
+                            color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Menu',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: onClose,
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        splashRadius: 22,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 12),
+                  _DividerSoftModern(),
+                  const SizedBox(height: 14),
+
+                  // ✅ 3 SEZIONI + proposta concreta (Profilo, App, Focus)
+                  const _SectionTitle('Profilo'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Gestione profilo',
+                    subtitle: 'Account, avatar, progressi',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: schermata profilo')),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+                  const _SectionTitle('App'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.tune_rounded,
+                    title: 'Impostazioni app',
+                    subtitle: 'Audio, notifiche, privacy',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: impostazioni app')),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+                  const _SectionTitle('Focus'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.timer_outlined,
+                    title: 'Strumenti Focus',
+                    subtitle: 'Preset, suoni, blocco distrazioni',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: strumenti focus')),
+                      );
+                    },
+                  ),
+
+                  // ✅ OLED-safe: teniamolo “temporaneo”
+                  const SizedBox(height: 14),
+                  const _SectionTitle('Accessibilità'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.shield_moon_outlined,
+                    title: 'Modalità OLED-safe',
+                    subtitle: 'Riduce burn-in e luminosità fissa',
+                    trailing: Switch(
+                      value: settings.isOledSafe,
+                      onChanged: (v) {
+                        settings.setFocusDisplayMode(
+                          v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
+                        );
+                      },
+                    ),
+                    onTap: () {
+                      settings.setFocusDisplayMode(
+                        settings.isOledSafe
+                            ? FocusDisplayMode.normal
+                            : FocusDisplayMode.oledSafe,
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Card “pill” moderne: niente bordi netti, gradient soft + doppia ombra.
+class _ModernTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final Widget? trailing;
+  final VoidCallback? onTap;
+
+  const _ModernTile({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withOpacity(0.10),
+              Colors.white.withOpacity(0.06),
+            ],
+          ),
+          boxShadow: [
+            // shadow scura sotto
+            BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 16,
+              offset: const Offset(0, 10),
+            ),
+            // highlight leggero sopra (effetto “pill” moderno)
+            BoxShadow(
+              color: Colors.white.withOpacity(0.05),
+              blurRadius: 14,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: Colors.white.withOpacity(0.10),
+              ),
+              child: Icon(icon, color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14.5,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle!,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.62),
+                        fontSize: 12.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 10),
+              trailing!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          color: Colors.white.withOpacity(0.55),
+          fontWeight: FontWeight.w900,
+          fontSize: 12,
+          letterSpacing: 1.25,
+        ),
+      ),
+    );
+  }
+}
+
+class _DividerSoftModern extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 1,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.transparent,
+            Colors.white.withOpacity(0.16),
+            Colors.transparent,
+          ],
+        ),
       ),
     );
   }

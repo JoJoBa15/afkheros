@@ -59,12 +59,12 @@ class _FocusButton extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(50),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        filter: ImageFilter.blur(sigmaX: 40, sigmaY: 10),
         child: InkWell(
           onTap: () => _showDurationPicker(context),
           borderRadius: BorderRadius.circular(50),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 34, vertical: 10),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(50),
@@ -74,14 +74,14 @@ class _FocusButton extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.timer_outlined, color: Colors.white),
-                SizedBox(width: 12),
+                SizedBox(width: 15),
                 Text(
                   'Concentrati!',
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 18,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.6,
                   ),
                 ),
               ],
