@@ -1,7 +1,10 @@
+
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+
+// --- Widget Principale ---
 
 class MyPathBackground extends StatefulWidget {
   const MyPathBackground({super.key});
@@ -15,21 +18,19 @@ class _MyPathBackgroundState extends State<MyPathBackground>
   static const _w = 1024.0;
   static const _h = 1536.0;
 
-  late final AnimationController _fx; // particelle + flicker + mist
+  late final AnimationController _fx;
   late final Timer _clock;
-
   DateTime _now = DateTime.now();
 
   @override
   void initState() {
     super.initState();
-
-    _fx = AnimationController(vsync: this, duration: const Duration(seconds: 6))
+    _fx = AnimationController(vsync: this, duration: const Duration(seconds: 10))
       ..repeat();
-
-    // L'orario non serve aggiornarlo ogni frame: basta 1 volta al minuto.
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
-      setState(() => _now = DateTime.now());
+      if (mounted) {
+        setState(() => _now = DateTime.now());
+      }
     });
   }
 
@@ -43,12 +44,9 @@ class _MyPathBackgroundState extends State<MyPathBackground>
   @override
   Widget build(BuildContext context) {
     final blend = _computeBlend(_now);
-
-    // Intensità overlay in base alla fase (0..1)
+    final nightness = _nightness(_now); // 0 (giorno) -> 1 (notte)
     final mist = _mistIntensity(_now);
-    final nightness = _nightness(_now); // 0 day -> 1 night
-    final dust = lerpDouble(0.18, 0.55, nightness)!;
-    final glow = lerpDouble(0.10, 0.85, nightness)!;
+    final leaves = nightness < 0.8 ? 1.0 : 0.0; // No foglie di notte fonda
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -67,50 +65,27 @@ class _MyPathBackgroundState extends State<MyPathBackground>
               return Stack(
                 fit: StackFit.expand,
                 children: [
-                  // BASE: due immagini sovrapposte, stessa posizione, stessa scala
+                  // Base (giorno/notte)
                   Opacity(
                     opacity: 1 - tBlend,
-                    child: Image.asset(
-                      blend.a,
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.none,
-                    ),
+                    child: Image.asset(blend.a, fit: BoxFit.fill, filterQuality: FilterQuality.none),
                   ),
                   Opacity(
                     opacity: tBlend,
-                    child: Image.asset(
-                      blend.b,
-                      fit: BoxFit.fill,
-                      filterQuality: FilterQuality.none,
-                    ),
+                    child: Image.asset(blend.b, fit: BoxFit.fill, filterQuality: FilterQuality.none),
                   ),
 
-                  // OVERLAY: nebbia del mattino (solo sunrise -> primo day)
+                  // Effetto Foglie che cadono dagli alberi
+                  if (leaves > 0.01)
+                    CustomPaint(painter: LeafFallPainter(t: tFx, intensity: leaves)),
+
+                  // Nebbia mattutina
                   if (mist > 0.001)
-                    CustomPaint(
-                      painter: MistPainter(
-                        t: tFx,
-                        intensity: mist,
-                      ),
-                    ),
-
-                  // OVERLAY: luce lanterna (flicker) vicino all’ingresso
-                  if (glow > 0.001)
-                    CustomPaint(
-                      painter: LanternGlowPainter(
-                        t: tFx,
-                        intensity: glow,
-                      ),
-                    ),
-
-                  // OVERLAY: polvere/particelle vicino miniera
-                  if (dust > 0.001)
-                    CustomPaint(
-                      painter: DustPainter(
-                        t: tFx,
-                        intensity: dust,
-                      ),
-                    ),
+                    CustomPaint(painter: MistPainter(t: tFx, intensity: mist)),
+                    
+                  // Bagliore pulsante della lanterna
+                  if (nightness > 0.001)
+                    CustomPaint(painter: LanternGlowPainter(t: tFx, intensity: nightness)),
                 ],
               );
             },
@@ -121,12 +96,11 @@ class _MyPathBackgroundState extends State<MyPathBackground>
   }
 }
 
-/// ---------- TIME BLEND (4 fasi) ----------
+// --- Logica Temporale ---
 
 class _Blend {
-  final String a;
-  final String b;
-  final double t; // 0..1
+  final String a, b;
+  final double t;
   const _Blend(this.a, this.b, this.t);
 }
 
@@ -137,69 +111,175 @@ _Blend _computeBlend(DateTime now) {
   const night = 'assets/images/bg/mine_night.png';
 
   final m = now.hour * 60 + now.minute;
+  const sunriseStart = 6 * 60, sunriseEnd = 8 * 60;
+  const sunsetStart = 17 * 60, sunsetEnd = 19 * 60;
+  const nightStart = 20 * 60 + 30;
 
-  // Personalizza qui le fasce come vuoi (minuti da mezzanotte)
-  const sunriseStart = 6 * 60;      // 06:00
-  const sunriseEnd   = 8 * 60;      // 08:00
-  const sunsetStart  = 17 * 60;     // 17:00
-  const sunsetEnd    = 19 * 60;     // 19:00
-  const nightStart   = 20 * 60 + 30; // 20:30
-
-  // sunrise -> day
   if (m >= sunriseStart && m < sunriseEnd) {
-    final t = (m - sunriseStart) / (sunriseEnd - sunriseStart);
-    return _Blend(sunrise, day, t);
+    return _Blend(sunrise, day, (m - sunriseStart) / (sunriseEnd - sunriseStart));
   }
-
-  // day fisso
   if (m >= sunriseEnd && m < sunsetStart) {
-    return const _Blend(day, day, 0);
+    return _Blend(day, day, 0);
   }
-
-  // day -> sunset
   if (m >= sunsetStart && m < sunsetEnd) {
-    final t = (m - sunsetStart) / (sunsetEnd - sunsetStart);
-    return _Blend(day, sunset, t);
+    return _Blend(day, sunset, (m - sunsetStart) / (sunsetEnd - sunsetStart));
   }
-
-  // sunset -> night (tramonto lungo “cinema”)
   if (m >= sunsetEnd && m < nightStart) {
-    final t = (m - sunsetEnd) / (nightStart - sunsetEnd);
-    return _Blend(sunset, night, t);
+    return _Blend(sunset, night, (m - sunsetEnd) / (nightStart - sunsetEnd));
   }
-
-  // night fisso (anche dopo mezzanotte)
-  return const _Blend(night, night, 0);
+  return _Blend(night, night, 0);
 }
 
-double smoothstep(double t) => t * t * (3 - 2 * t);
-double clamp01(double x) => x < 0 ? 0 : (x > 1 ? 1 : x);
-
 double _nightness(DateTime now) {
-  // 0..1: più è notte, più aumentano glow/dust
   final m = now.hour * 60 + now.minute;
-  const nightFrom = 19 * 60; // 19:00
-  const nightTo   = 23 * 60; // 23:00
-  if (m <= nightFrom) return 0;
-  if (m >= nightTo) return 1;
-  return smoothstep((m - nightFrom) / (nightTo - nightFrom));
+  const nightFrom = 18 * 60, nightTo = 22 * 60;
+  return smoothstep(clamp01((m - nightFrom) / (nightTo - nightFrom)));
 }
 
 double _mistIntensity(DateTime now) {
-  // Nebbia: forte al mattino, sparisce verso tarda mattina
   final m = now.hour * 60 + now.minute;
-  const mistFrom = 6 * 60;   // 06:00
-  const mistTo   = 10 * 60;  // 10:00
-  if (m < mistFrom) return 0;
-  if (m > mistTo) return 0;
-  final x = 1 - (m - mistFrom) / (mistTo - mistFrom); // decrescente
+  const mistFrom = 6 * 60, mistTo = 10 * 60;
+  if (m < mistFrom || m > mistTo) return 0;
+  final x = 1 - (m - mistFrom) / (mistTo - mistFrom);
   return smoothstep(clamp01(x)) * 0.9;
 }
 
-/// ---------- OVERLAY PAINTERS (NO ASSET, NO TAGLI) ----------
+// --- Painters Personalizzati ---
+
+// NUOVO: Effetto foglie che cadono
+class LeafFallPainter extends CustomPainter {
+  final double t;
+  final double intensity;
+  final _paint = Paint()..isAntiAlias = false;
+
+  LeafFallPainter({required this.t, required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Area di spawn delle foglie (chiome degli alberi)
+    final spawnArea = Rect.fromLTRB(size.width * 0.1, size.height * 0.4, size.width * 0.9, size.height * 0.6);
+    const leafCount = 80;
+
+    for (int i = 0; i < leafCount; i++) {
+      final seed = i * 1337;
+      final hash1 = _hash01(seed);
+      final hash2 = _hash01(seed * 2);
+      final hash3 = _hash01(seed * 3);
+      final hash4 = _hash01(seed * 4);
+      
+      // Traiettoria e ciclo di vita
+      final lifetime = 0.5 + hash2 * 0.5;
+      final progress = (t + hash1) % lifetime / lifetime;
+
+      // Movimento verticale (caduta) e orizzontale (vento)
+      final startX = spawnArea.left + hash1 * spawnArea.width;
+      final startY = spawnArea.top + hash2 * spawnArea.height;
+      final wind = (hash3 - 0.5) * size.width * 0.3;
+      
+      final x = startX + wind * progress;
+      final y = startY + progress * size.height * 0.4;
+      
+      // Rotazione
+      final rotation = (hash4 - 0.5) * 4 * math.pi * progress;
+      
+      // Dimensioni e colore della foglia
+      final leafW = 4.0 + hash3 * 4.0;
+      final leafH = 6.0 + hash4 * 5.0;
+      final opacity = (1 - progress) * 0.7 * intensity;
+      
+      _paint.color = Color.fromARGB((opacity * 255).round(), 130, 180, 90).withOpacity(opacity);
+
+      // Disegna la foglia ruotata
+      canvas.save();
+      canvas.translate(x, y);
+      canvas.rotate(rotation);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: leafW, height: leafH), const Radius.circular(2)),
+        _paint,
+      );
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant LeafFallPainter old) => old.t != t || old.intensity != intensity;
+}
+
+// MIGLIORATO: Bagliore della lanterna più realistico
+class LanternGlowPainter extends CustomPainter {
+  final double t;
+  final double intensity;
+
+  LanternGlowPainter({required this.t, required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final glowCenter = Offset(size.width * 0.62, size.height * 0.74);
+    
+    // Flicker più complesso e organico
+    final flicker = 0.8 + 
+                  math.sin(t * math.pi * 2 * 2.1) * 0.15 + 
+                  math.sin(t * math.pi * 2 * 5.7) * 0.08 +
+                  math.sin(t * math.pi * 2 * 13.3) * 0.05;
+    final a = clamp01(intensity * flicker);
+
+    final rOuter = size.width * 0.22;
+    final rInner = size.width * 0.08;
+    
+    // Gradiente per l'aura esterna
+    final paint = Paint()
+      ..blendMode = BlendMode.screen
+      ..shader = RadialGradient(
+        colors: [
+          Color.lerp(const Color(0x00FFD08A), const Color(0xAAFFB05A), a)!,
+          const Color(0x00000000),
+        ],
+        stops: const [0.0, 1.0],
+      ).createShader(Rect.fromCircle(center: glowCenter, radius: rOuter));
+
+    canvas.drawCircle(glowCenter, rOuter, paint);
+
+    // Core più piccolo e caldo per la fiamma
+    final corePaint = Paint()
+      ..blendMode = BlendMode.plus // 'Plus' per un effetto più luminoso
+      ..color = Color.fromARGB((200 * a).round(), 255, 230, 180);
+    canvas.drawCircle(glowCenter, rInner, corePaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant LanternGlowPainter old) => old.t != t || old.intensity != intensity;
+}
+
+class MistPainter extends CustomPainter {
+  final double t, intensity;
+  MistPainter({required this.t, required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..blendMode = BlendMode.screen;
+    final baseY = size.height * 0.42, bandH = size.height * 0.18;
+
+    const blobs = 48;
+    for (int i = 0; i < blobs; i++) {
+      final p = _hash01(i * 97), q = _hash01(i * 193);
+      final speed = 0.02 + 0.05 * q;
+      final x = (p + t * speed) % 1.0;
+      final y = baseY + (q - 0.5) * bandH * 0.55;
+      final w = size.width * (0.10 + 0.18 * _hash01(i * 311));
+      final h = bandH * (0.10 + 0.18 * _hash01(i * 431));
+      final alpha = (18 + (55 * intensity).round());
+      paint.color = Color.fromARGB(alpha, 220, 235, 255);
+      canvas.drawRect(Rect.fromLTWH(x * size.width - w * 0.5, y, w, h), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant MistPainter old) => old.t != t || old.intensity != intensity;
+}
+
+// --- Funzioni Utili ---
 
 double _hash01(int n) {
-  // pseudo-random deterministico 0..1
   n = (n ^ 0xA3C59AC3) * 2654435761;
   n = (n ^ (n >> 16)) * 2246822519;
   n = (n ^ (n >> 13)) * 3266489917;
@@ -207,145 +287,5 @@ double _hash01(int n) {
   return (n & 0xFFFFFF) / 0xFFFFFF;
 }
 
-class LanternGlowPainter extends CustomPainter {
-  final double t;         // 0..1 (loop)
-  final double intensity; // 0..1
-  LanternGlowPainter({required this.t, required this.intensity});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // POSIZIONE luce: tarata per l’immagine (modifica se vuoi)
-    final glowCenter = Offset(size.width * 0.62, size.height * 0.74);
-
-    // Flicker “organico” (niente random a scatti)
-    final flicker =
-        0.75 +
-        0.15 * math.sin(t * math.pi * 2 * 3.0) +
-        0.10 * math.sin(t * math.pi * 2 * 7.0);
-    final a = clamp01(intensity * flicker);
-
-    final r1 = size.width * 0.09;
-    final r2 = size.width * 0.20;
-
-    final paint = Paint()
-      ..isAntiAlias = false
-      ..blendMode = BlendMode.screen
-      ..shader = RadialGradient(
-        colors: [
-          Color.lerp(
-            const Color(0x00FFD08A),
-            const Color(0xCCFFD08A),
-            a,
-          )!,
-          const Color(0x00000000),
-        ],
-        stops: const [0.0, 1.0],
-      ).createShader(Rect.fromCircle(center: glowCenter, radius: r2));
-
-    canvas.drawCircle(glowCenter, r2, paint);
-
-    // piccolo “core” più caldo
-    final core = Paint()
-      ..isAntiAlias = false
-      ..blendMode = BlendMode.screen
-      ..color = Color.fromARGB((160 * a).round(), 255, 220, 160);
-    canvas.drawCircle(glowCenter, r1, core);
-  }
-
-  @override
-  bool shouldRepaint(covariant LanternGlowPainter old) =>
-      old.t != t || old.intensity != intensity;
-}
-
-class MistPainter extends CustomPainter {
-  final double t;
-  final double intensity;
-  MistPainter({required this.t, required this.intensity});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..isAntiAlias = false
-      ..blendMode = BlendMode.screen;
-
-    // fascia nebbia vicino all'orizzonte della foresta
-    final baseY = size.height * 0.42;
-    final bandH = size.height * 0.18;
-
-    // Disegno “blobs” a blocchetti (look pixel)
-    const blobs = 48;
-    for (int i = 0; i < blobs; i++) {
-      final p = _hash01(i * 97);
-      final q = _hash01(i * 193);
-
-      final speed = 0.02 + 0.05 * q;
-      final x = (p + t * speed) % 1.0;
-
-      final y = baseY + (q - 0.5) * bandH * 0.55;
-      final w = size.width * (0.10 + 0.18 * _hash01(i * 311));
-      final h = bandH * (0.10 + 0.18 * _hash01(i * 431));
-
-      final alpha = (18 + (55 * intensity).round());
-      paint.color = Color.fromARGB(alpha, 220, 235, 255);
-
-      // pixel blocks (rettangoli)
-      final rect = Rect.fromLTWH(
-        x * size.width - w * 0.5,
-        y,
-        w,
-        h,
-      );
-      canvas.drawRect(rect, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant MistPainter old) =>
-      old.t != t || old.intensity != intensity;
-}
-
-class DustPainter extends CustomPainter {
-  final double t;
-  final double intensity;
-  DustPainter({required this.t, required this.intensity});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..isAntiAlias = false
-      ..blendMode = BlendMode.screen;
-
-    // Area spawn vicino all’ingresso miniera
-    final origin = Offset(size.width * 0.55, size.height * 0.78);
-    final areaW = size.width * 0.20;
-    final areaH = size.height * 0.10;
-
-    // particelle: quadrettini 1..3 px
-    const count = 120;
-    for (int i = 0; i < count; i++) {
-      final a = _hash01(i * 101);
-      final b = _hash01(i * 503);
-
-      // fase personale per ogni particella
-      final phase = (t + a) % 1.0;
-
-      final x = origin.dx + (a - 0.5) * areaW;
-      final y = origin.dy - phase * areaH - (b * 22);
-
-      final sizePx = 1 + (3 * _hash01(i * 887)).floor();
-      final alpha = (255 * intensity * (1 - phase) * 0.25).round().clamp(0, 80);
-
-      paint.color = Color.fromARGB(alpha, 255, 235, 200);
-
-      // “pixel” = rettangolo
-      canvas.drawRect(
-        Rect.fromLTWH(x, y, sizePx.toDouble(), sizePx.toDouble()),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant DustPainter old) =>
-      old.t != t || old.intensity != intensity;
-}
+double smoothstep(double t) => t * t * (3 - 2 * t);
+double clamp01(double x) => x.clamp(0.0, 1.0);
