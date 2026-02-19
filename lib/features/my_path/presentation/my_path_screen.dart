@@ -13,29 +13,23 @@ class MyPathScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold funge da contenitore radice per la schermata.
-    // L'uso di `extendBodyBehindAppBar` e `appBar` trasparente
-    // permette al body (lo Stack) di occupare l'intera area dello schermo.
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        // Inseriamo l'header personalizzato qui per allinearlo correttamente
-        // con la safe area superiore e lasciare il corpo dello Stack sotto.
         title: const _Header(),
       ),
       body: const Stack(
         children: [
           // 1. Sfondo dinamico che copre l'intera area.
           MyPathBackground(),
-          // 2. Pulsante principale posizionato in basso al centro.
+          // 2. Pulsante principale posizionato sopra la miniera.
           Align(
-            alignment: Alignment.bottomCenter,
-            child: Padding(
-              padding: EdgeInsets.only(bottom: 48.0),
-              child: _FocusButton(),
-            ),
+            // Allineamento frazionario: X=0.0 (centro orizzontale), Y=0.7 (in basso).
+            // Questo sposta il pulsante più in alto rispetto a `bottomCenter`.
+            alignment: Alignment(0.0, 0.7),
+            child: _FocusButton(),
           ),
         ],
       ),
@@ -51,17 +45,13 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsState>();
 
-    // Usiamo una Row per disporre gli elementi orizzontalmente.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Pulsante Popup per il menu utente.
         PopupMenuButton<int>(
           onSelected: (value) {
-            // Gestisce la selezione dal menu.
             if (value == 0) {
-              // Inverte la modalità OLED-safe.
               settings.setFocusDisplayMode(
                 settings.isOledSafe
                     ? FocusDisplayMode.normal
@@ -69,39 +59,34 @@ class _Header extends StatelessWidget {
               );
             }
           },
-          // Stile del pulsante Popup: avatar più grande e personalizzato.
           child: const CircleAvatar(
-            radius: 28, // Raggio più grande
+            radius: 28,
             backgroundColor: Colors.white24,
             child: Icon(Icons.person_outline, size: 32, color: Colors.white),
           ),
-          // Costruttore degli item del menu.
           itemBuilder: (context) => [
             CheckedPopupMenuItem<int>(
               value: 0,
               checked: settings.isOledSafe,
               child: const Text('Modalità OLED-safe'),
             ),
-            // Qui si possono aggiungere altri item in futuro.
             const PopupMenuDivider(),
             const PopupMenuItem<int>(
               value: 1,
-              child: Text('Impostazioni'), // Esempio
+              enabled: false, // Disabilitato per ora
+              child: Text('Impostazioni'),
             ),
           ],
         ),
-
-        // Placeholder per le valute del giocatore.
-        // TODO: Collegare ai dati reali dello stato del gioco.
         const Row(
           children: [
             Icon(Icons.shield, color: Colors.orange, size: 18),
             SizedBox(width: 4),
-            Text('100', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('100', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
             SizedBox(width: 16),
             Icon(Icons.star, color: Colors.yellow, size: 18),
             SizedBox(width: 4),
-            Text('50', style: TextStyle(fontWeight: FontWeight.bold)),
+            Text('50', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
           ],
         ),
       ],
@@ -113,25 +98,21 @@ class _Header extends StatelessWidget {
 class _FocusButton extends StatelessWidget {
   const _FocusButton();
 
-  // Mostra il selettore di durata in un pannello modale.
   void _showDurationPicker(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.transparent, // Sfondo trasparente per il blur
+      backgroundColor: Colors.transparent,
       builder: (_) => const _DurationPicker(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // `ClipRRect` è necessario per applicare l'arrotondamento dei bordi
-    // al `BackdropFilter`.
     return ClipRRect(
       borderRadius: BorderRadius.circular(50),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: InkWell(
-          // Utilizziamo InkWell per l'effetto ripple al tocco.
           onTap: () => _showDurationPicker(context),
           borderRadius: BorderRadius.circular(50),
           child: Container(
@@ -168,10 +149,9 @@ class _FocusButton extends StatelessWidget {
 class _DurationPicker extends StatelessWidget {
   const _DurationPicker();
 
-  // Funzione per avviare la sessione di focus e chiudere il pannello.
   void _startSession(BuildContext context, Duration duration) {
     final settings = context.read<SettingsState>();
-    Navigator.of(context).pop(); // Chiude il bottom sheet
+    Navigator.of(context).pop();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FocusSessionScreen(
@@ -184,7 +164,6 @@ class _DurationPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Lista delle durate predefinite.
     const durations = [
       Duration(minutes: 15),
       Duration(minutes: 25),
@@ -192,11 +171,10 @@ class _DurationPicker extends StatelessWidget {
       Duration(minutes: 60),
     ];
 
-    // Utilizziamo anche qui il BackdropFilter per coerenza stilistica.
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 16),
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 32), // Aumentato padding sotto
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.4),
           borderRadius: const BorderRadius.only(
@@ -216,13 +194,12 @@ class _DurationPicker extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 24),
-            // Griglia di pulsanti per la selezione della durata.
             GridView.count(
               crossAxisCount: 2,
               shrinkWrap: true,
               mainAxisSpacing: 12,
               crossAxisSpacing: 12,
-              childAspectRatio: 2.5, // Rapporto per pulsanti più larghi
+              childAspectRatio: 2.5,
               children: durations.map((d) {
                 return ElevatedButton(
                   style: ElevatedButton.styleFrom(

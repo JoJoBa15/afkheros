@@ -46,7 +46,6 @@ class _MyPathBackgroundState extends State<MyPathBackground>
     final blend = _computeBlend(_now);
     final nightness = _nightness(_now); // 0 (giorno) -> 1 (notte)
     final mist = _mistIntensity(_now);
-    final leaves = nightness < 0.8 ? 1.0 : 0.0; // No foglie di notte fonda
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -74,10 +73,6 @@ class _MyPathBackgroundState extends State<MyPathBackground>
                     opacity: tBlend,
                     child: Image.asset(blend.b, fit: BoxFit.fill, filterQuality: FilterQuality.none),
                   ),
-
-                  // Effetto Foglie che cadono dagli alberi
-                  if (leaves > 0.01)
-                    CustomPaint(painter: LeafFallPainter(t: tFx, intensity: leaves)),
 
                   // Nebbia mattutina
                   if (mist > 0.001)
@@ -145,65 +140,6 @@ double _mistIntensity(DateTime now) {
 }
 
 // --- Painters Personalizzati ---
-
-// NUOVO: Effetto foglie che cadono
-class LeafFallPainter extends CustomPainter {
-  final double t;
-  final double intensity;
-  final _paint = Paint()..isAntiAlias = false;
-
-  LeafFallPainter({required this.t, required this.intensity});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // Area di spawn delle foglie (chiome degli alberi)
-    final spawnArea = Rect.fromLTRB(size.width * 0.1, size.height * 0.4, size.width * 0.9, size.height * 0.6);
-    const leafCount = 80;
-
-    for (int i = 0; i < leafCount; i++) {
-      final seed = i * 1337;
-      final hash1 = _hash01(seed);
-      final hash2 = _hash01(seed * 2);
-      final hash3 = _hash01(seed * 3);
-      final hash4 = _hash01(seed * 4);
-      
-      // Traiettoria e ciclo di vita
-      final lifetime = 0.5 + hash2 * 0.5;
-      final progress = (t + hash1) % lifetime / lifetime;
-
-      // Movimento verticale (caduta) e orizzontale (vento)
-      final startX = spawnArea.left + hash1 * spawnArea.width;
-      final startY = spawnArea.top + hash2 * spawnArea.height;
-      final wind = (hash3 - 0.5) * size.width * 0.3;
-      
-      final x = startX + wind * progress;
-      final y = startY + progress * size.height * 0.4;
-      
-      // Rotazione
-      final rotation = (hash4 - 0.5) * 4 * math.pi * progress;
-      
-      // Dimensioni e colore della foglia
-      final leafW = 4.0 + hash3 * 4.0;
-      final leafH = 6.0 + hash4 * 5.0;
-      final opacity = (1 - progress) * 0.7 * intensity;
-      
-      _paint.color = Color.fromARGB((opacity * 255).round(), 130, 180, 90).withOpacity(opacity);
-
-      // Disegna la foglia ruotata
-      canvas.save();
-      canvas.translate(x, y);
-      canvas.rotate(rotation);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromCenter(center: Offset.zero, width: leafW, height: leafH), const Radius.circular(2)),
-        _paint,
-      );
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant LeafFallPainter old) => old.t != t || old.intensity != intensity;
-}
 
 // MIGLIORATO: Bagliore della lanterna più realistico
 class LanternGlowPainter extends CustomPainter {
