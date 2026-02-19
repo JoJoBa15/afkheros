@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -12,79 +11,15 @@ class MyPathScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: const _Header(),
-      ),
-      body: const Stack(
-        children: [
-          // 1. Sfondo dinamico che copre l'intera area.
-          MyPathBackground(),
-          // 2. Pulsante principale posizionato a metà schermo.
-          Align(
-            alignment: Alignment.center,
-            child: _FocusButton(),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Header della schermata, contiene avatar (con menu) e valute.
-class _Header extends StatelessWidget {
-  const _Header();
-
-  @override
-  Widget build(BuildContext context) {
-    final settings = context.watch<SettingsState>();
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return const Stack(
       children: [
-        PopupMenuButton<int>(
-          onSelected: (value) {
-            if (value == 0) {
-              settings.setFocusDisplayMode(
-                settings.isOledSafe
-                    ? FocusDisplayMode.normal
-                    : FocusDisplayMode.oledSafe,
-              );
-            }
-          },
-          child: const CircleAvatar(
-            radius: 28,
-            backgroundColor: Colors.white24,
-            child: Icon(Icons.person_outline, size: 32, color: Colors.white),
-          ),
-          itemBuilder: (context) => [
-            CheckedPopupMenuItem<int>(
-              value: 0,
-              checked: settings.isOledSafe,
-              child: const Text('Modalità OLED-safe'),
-            ),
-            const PopupMenuDivider(),
-            const PopupMenuItem<int>(
-              value: 1,
-              enabled: false, // Disabilitato per ora
-              child: Text('Impostazioni'),
-            ),
-          ],
-        ),
-        const Row(
-          children: [
-            Icon(Icons.shield, color: Colors.orange, size: 18),
-            SizedBox(width: 4),
-            Text('100', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-            SizedBox(width: 16),
-            Icon(Icons.star, color: Colors.yellow, size: 18),
-            SizedBox(width: 4),
-            Text('50', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          ],
+        // Sfondo dinamico che deve coprire tutta l’area (anche dietro l’header).
+        MyPathBackground(),
+
+        // Pulsante principale
+        Align(
+          alignment: Alignment.center,
+          child: _FocusButton(),
         ),
       ],
     );
@@ -171,7 +106,7 @@ class _DurationPicker extends StatelessWidget {
     return BackdropFilter(
       filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
       child: Container(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 32), // Aumentato padding sotto
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         decoration: BoxDecoration(
           color: Colors.black.withOpacity(0.4),
           borderRadius: const BorderRadius.only(
@@ -207,7 +142,8 @@ class _DurationPicker extends StatelessWidget {
                     ),
                   ),
                   onPressed: () => _startSession(context, d),
-                  child: Text('${d.inMinutes} minuti', style: const TextStyle(fontSize: 16)),
+                  child: Text('${d.inMinutes} minuti',
+                      style: const TextStyle(fontSize: 16)),
                 );
               }).toList(),
             ),
