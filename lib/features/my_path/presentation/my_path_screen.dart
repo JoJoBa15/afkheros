@@ -11,14 +11,31 @@ class MyPathScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Stack(
+    return Stack(
       children: [
-        // Sfondo dinamico che deve coprire tutta l’area (anche dietro l’header).
-        MyPathBackground(),
+        // ✅ SFONDO FULL: copre tutto lo schermo (anche dietro header)
+        const Positioned.fill(
+          child: MyPathBackground(),
+        ),
 
-        // Pulsante principale
-        Align(
-          alignment: Alignment.center,
+        // (opzionale) leggerissimo scrim in alto per leggibilità header
+        IgnorePointer(
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.black.withOpacity(0.18),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ✅ Contenuto: bottone centrale
+        const Center(
           child: _FocusButton(),
         ),
       ],
@@ -26,7 +43,6 @@ class MyPathScreen extends StatelessWidget {
   }
 }
 
-/// Pulsante "Concentrati!" con sfondo sfocato.
 class _FocusButton extends StatelessWidget {
   const _FocusButton();
 
@@ -77,13 +93,13 @@ class _FocusButton extends StatelessWidget {
   }
 }
 
-/// Pannello modale per la selezione della durata della sessione.
 class _DurationPicker extends StatelessWidget {
   const _DurationPicker();
 
   void _startSession(BuildContext context, Duration duration) {
     final settings = context.read<SettingsState>();
     Navigator.of(context).pop();
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FocusSessionScreen(
@@ -108,7 +124,7 @@ class _DurationPicker extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.4),
+          color: Colors.black.withOpacity(0.40),
           borderRadius: const BorderRadius.only(
             topLeft: Radius.circular(28),
             topRight: Radius.circular(28),
@@ -142,8 +158,10 @@ class _DurationPicker extends StatelessWidget {
                     ),
                   ),
                   onPressed: () => _startSession(context, d),
-                  child: Text('${d.inMinutes} minuti',
-                      style: const TextStyle(fontSize: 16)),
+                  child: Text(
+                    '${d.inMinutes} minuti',
+                    style: const TextStyle(fontSize: 16),
+                  ),
                 );
               }).toList(),
             ),

@@ -39,7 +39,7 @@ class _RootShellState extends State<RootShell> {
     return Scaffold(
       drawer: const ProfileDrawer(),
 
-      // 🔥 SOLO su My Path: body dietro AppBar (sfondo fino in cima)
+      // SOLO su MyPath: il body passa dietro l’AppBar (sfondo fino in cima)
       extendBodyBehindAppBar: isMyPath,
 
       appBar: isMyPath ? _buildMyPathAppBar() : _buildDefaultAppBar(),
@@ -98,22 +98,22 @@ class _RootShellState extends State<RootShell> {
 
   PreferredSizeWidget _buildMyPathAppBar() {
     return AppBar(
-      // ✅ Trasparente + niente tint Material3
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
 
-      // ✅ Status bar trasparente così lo sfondo arriva proprio in cima
       systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
       ),
 
-      // ✅ Un solo header: layout custom che contiene menu + valute + stats
       automaticallyImplyLeading: false,
       titleSpacing: 0,
-      toolbarHeight: 92,
+
+      // più compatto (meno fascia nera sopra)
+      toolbarHeight: 72,
+
       title: const _MyPathAppBarContent(),
     );
   }
@@ -128,62 +128,54 @@ class _MyPathAppBarContent extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Row(
         children: [
-          Row(
-            children: [
-              PopupMenuButton<int>(
-                onSelected: (value) {
-                  if (value == 0) {
-                    settings.setFocusDisplayMode(
-                      settings.isOledSafe
-                          ? FocusDisplayMode.normal
-                          : FocusDisplayMode.oledSafe,
-                    );
-                  }
-                },
-                child: const CircleAvatar(
-                  radius: 22,
-                  backgroundColor: Colors.white24,
-                  child: Icon(Icons.person_outline,
-                      size: 26, color: Colors.white),
-                ),
-                itemBuilder: (context) => [
-                  CheckedPopupMenuItem(
-                    value: 0,
-                    checked: settings.isOledSafe,
-                    child: const Text('Modalità OLED-safe'),
-                  ),
-                  const PopupMenuDivider(),
-                  const PopupMenuItem(
-                    value: 1,
-                    enabled: false,
-                    child: Text('Impostazioni'),
-                  ),
-                ],
+          PopupMenuButton<int>(
+            onSelected: (value) {
+              if (value == 0) {
+                settings.setFocusDisplayMode(
+                  settings.isOledSafe
+                      ? FocusDisplayMode.normal
+                      : FocusDisplayMode.oledSafe,
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              CheckedPopupMenuItem(
+                value: 0,
+                checked: settings.isOledSafe,
+                child: const Text('Modalità OLED-safe'),
               ),
-              const Spacer(),
-              const CurrenciesBar(),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 1,
+                enabled: false,
+                child: Text('Impostazioni'),
+              ),
             ],
+
+            // ✅ USER BUTTON più grande
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.20),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.25),
+                  width: 1,
+                ),
+              ),
+              child: const Icon(
+                Icons.person_outline,
+                size: 32,
+                color: Colors.white,
+              ),
+            ),
           ),
-          const SizedBox(height: 8),
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Icon(Icons.shield, color: Colors.orange, size: 18),
-              SizedBox(width: 4),
-              Text('100',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.white)),
-              SizedBox(width: 16),
-              Icon(Icons.star, color: Colors.yellow, size: 18),
-              SizedBox(width: 4),
-              Text('50',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.white)),
-            ],
-          ),
+
+          const Spacer(),
+          const CurrenciesBar(),
         ],
       ),
     );
