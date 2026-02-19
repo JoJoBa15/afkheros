@@ -1,4 +1,3 @@
-
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -24,11 +23,9 @@ class MyPathScreen extends StatelessWidget {
         children: [
           // 1. Sfondo dinamico che copre l'intera area.
           MyPathBackground(),
-          // 2. Pulsante principale posizionato sopra la miniera.
+          // 2. Pulsante principale posizionato a metà schermo.
           Align(
-            // Allineamento frazionario: X=0.0 (centro orizzontale), Y=0.7 (in basso).
-            // Questo sposta il pulsante più in alto rispetto a `bottomCenter`.
-            alignment: Alignment(0.0, 0.7),
+            alignment: Alignment.center,
             child: _FocusButton(),
           ),
         ],
