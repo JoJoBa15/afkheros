@@ -112,10 +112,17 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
       appBar: AppBar(
         backgroundColor: isOledSafe ? Colors.black : null,
         title: Text(widget.debugLabel ?? 'Focus Session'),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: _confirmCancel,
-        ),
+        automaticallyImplyLeading: false,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: FilledButton.icon(
+              onPressed: _confirmCancel,
+              icon: const Icon(Icons.stop),
+              label: const Text('Interrompi'),
+            ),
+          )
+        ],
       ),
       body: AnimatedContainer(
         duration: const Duration(milliseconds: 350),
@@ -125,12 +132,6 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _confirmCancel,
-              icon: const Icon(Icons.stop),
-              label: const Text('Interrompi'),
-            ),
-            const SizedBox(height: 16),
             Transform.translate(
               offset: Offset(_x, _y),
               child: Container(
