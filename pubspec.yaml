@@ -1,6 +1,5 @@
-name: afkheros
-description: "A new Flutter project."
-publish_to: 'none'
+name: afkheroes
+description: "Concentrati! AFK Heroes è un gioco idle RPG che ti permette di goderti l'avventura senza stress concentrandoti su te stesso!"
 version: 1.0.0+1
 
 environment:
@@ -11,8 +10,10 @@ dependencies:
     sdk: flutter
   provider: ^6.0.0
   cupertino_icons: ^1.0.8
+  flutter_native_splash: ^2.4.7
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
@@ -20,7 +21,38 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
+    - assets/images/logo.png
     - assets/images/bg/mine_sunrise.png
     - assets/images/bg/mine_day.png
     - assets/images/bg/mine_sunset.png
     - assets/images/bg/mine_night.png
+
+flutter_native_splash:
+  # Splash per TUTTE le piattaforme (tranne Android 12+, che va sotto android_12)
+  color: "#0B0B0B"
+  image: "assets/images/logo.png"
+  fullscreen: true
+
+  android_12:
+    # Android 12+ va configurato QUI separatamente
+    color: "#0B0B0B"
+    image: "assets/images/logo.png"
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+
+  # usa il tuo logo attuale
+  image_path: "assets/images/logo.png"
+
+  # ANDROID (icona adattiva: evita crop brutti)
+  adaptive_icon_background: "#0B0B0B"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_foreground_inset: 16
+
+  # ANDROID 13+ (opzionale: icona “themed” monocromatica)
+  adaptive_icon_monochrome: "assets/images/logo.png"
+
+  # iOS: niente trasparenza nell’icona, qui la “appiattiamo” su un colore
+  remove_alpha_ios: true
+  background_color_ios: "#0B0B0B"
