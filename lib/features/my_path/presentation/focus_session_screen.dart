@@ -125,6 +125,12 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
         child: Column(
           children: [
             const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: _confirmCancel,
+              icon: const Icon(Icons.stop),
+              label: const Text('Interrompi'),
+            ),
+            const SizedBox(height: 16),
             Transform.translate(
               offset: Offset(_x, _y),
               child: Container(
@@ -164,12 +170,6 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
               ),
             ),
             const Spacer(),
-            FilledButton.icon(
-              onPressed: _confirmCancel,
-              icon: const Icon(Icons.stop),
-              label: const Text('Interrompi'),
-            ),
-            const SizedBox(height: 16),
           ],
         ),
       ),
