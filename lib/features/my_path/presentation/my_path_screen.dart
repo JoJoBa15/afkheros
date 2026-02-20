@@ -34,8 +34,9 @@ class MyPathScreen extends StatelessWidget {
           ),
         ),
 
-        // ✅ Contenuto: bottone centrale
-        const Center(
+        // ✅ Contenuto: bottone (leggermente più in alto)
+        const Align(
+          alignment: Alignment(0, -0.12), // 0 = centro, valori negativi = più su
           child: _FocusButton(),
         ),
       ],
