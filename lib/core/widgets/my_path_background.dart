@@ -1,24 +1,23 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show lerpDouble, ImageFilter;
+import 'dart:ui' show ImageFilter, lerpDouble;
 
 import 'package:flutter/material.dart';
 
-/// My Path background:
-/// - Sky gradient that changes with time (smooth transitions)
-/// - Sun (day) / Moon + stars (night)
-/// - Pixel clouds from PNG assets (3 parallax layers, infinite loop)
-/// - Optional mine background crossfade (sunrise/day/sunset/night)
+/// MyPathBackground:
+/// - Sky gradient che cambia in base all'orario (transizioni morbide)
+/// - Blob sfocati (aurora) per dare profondità
+/// - Granatura/film grain leggera (procedurale, no asset)
+/// - Sole/Luna su traiettoria che dipende dall'orario
+/// - Stelle di notte
+/// - Nuvole pixel (3 layer parallax, loop infinito) da PNG in assets/images/clouds/
+/// - Background “mine_*.png” con crossfade (sunrise/day/sunset/night)
 ///
-/// IMPORTANT:
-/// - Put your cloud pngs in: assets/images/clouds/
-/// - Update pubspec.yaml:
-///   flutter:
-///     assets:
-///       - assets/images/clouds/
-///       - assets/images/bg/
-///
-/// If you don't have clouds yet, it still runs (images just won't show).
+/// Nota assets consigliati in pubspec.yaml:
+/// flutter:
+///   assets:
+///     - assets/images/bg/
+///     - assets/images/clouds/
 class MyPathBackground extends StatefulWidget {
   final double parallaxOffset;
 
@@ -39,10 +38,11 @@ class _MyPathBackgroundState extends State<MyPathBackground>
 
   late final AnimationController _anim;
   late final Timer _clock;
+
   DateTime _now = DateTime.now();
 
-  // ✅ Metti qui i tuoi nomi file reali (AI clouds). Anche 6-12 vanno bene.
-  // Se non esistono ancora, non crasha (ma vedrai warning in console).
+  // ✅ Metti qui i tuoi nomi file reali (AI clouds).
+  // Se alcuni non esistono ancora, non crasha: semplicemente non si vedranno.
   static const List<String> _cloudAssets = [
     'assets/images/clouds/cloud_01.png',
     'assets/images/clouds/cloud_02.png',
@@ -62,7 +62,6 @@ class _MyPathBackgroundState extends State<MyPathBackground>
   void initState() {
     super.initState();
 
-    // Clouds seeds (3 layer)
     _farClouds = _genClouds(
       count: 6,
       seed: 11,
@@ -102,7 +101,8 @@ class _MyPathBackgroundState extends State<MyPathBackground>
     )..repeat();
 
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
     });
   }
 
@@ -127,9 +127,8 @@ class _MyPathBackgroundState extends State<MyPathBackground>
     final assetsCount = _cloudAssets.isEmpty ? 1 : _cloudAssets.length;
 
     return List.generate(count, (i) {
-      final assetIndex = (rnd.nextDouble() * assetsCount)
-          .floor()
-          .clamp(0, assetsCount - 1);
+      final assetIndex =
+          (rnd.nextDouble() * assetsCount).floor().clamp(0, assetsCount - 1);
 
       return _CloudSprite(
         assetIndex: assetIndex,
@@ -152,95 +151,98 @@ class _MyPathBackgroundState extends State<MyPathBackground>
       removeTop: true,
       removeBottom: true,
       child: SizedBox.expand(
-        // ✅ Cover + bottom anchor: no “abbassamento” / bande
         child: FittedBox(
           fit: BoxFit.cover,
           alignment: Alignment.bottomCenter,
-          child: SizedBox(
-            width: _w,
-            height: _h,
-            child: AnimatedBuilder(
-              animation: _anim,
-              builder: (_, __) {
-                final t = _anim.value;
+          child: RepaintBoundary(
+            child: SizedBox(
+              width: _w,
+              height: _h,
+              child: AnimatedBuilder(
+                animation: _anim,
+                builder: (context, _) {
+                  final t = _anim.value;
 
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // SKY
-                    CustomPaint(
-                      painter: _SkyPainter(
-                        sky: sky,
-                        t: t,
+                  return Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // SKY (gradient + blur blobs + grain + stars)
+                      CustomPaint(
+                        painter: _SkyPainter(
+                          sky: sky,
+                          now: _now,
+                          t: t,
+                        ),
                       ),
-                    ),
 
-                    // SUN / MOON
-                    CustomPaint(
-                      painter: _SunMoonPainter(
-                        sky: sky,
+                      // SUN / MOON (time-based path)
+                      CustomPaint(
+                        painter: _SunMoonPainter(
+                          sky: sky,
+                          now: _now,
+                          t: t,
+                          parallax: widget.parallaxOffset,
+                        ),
+                      ),
+
+                      // CLOUDS (3 layers)
+                      _PixelCloudLayer(
                         t: t,
                         parallax: widget.parallaxOffset,
+                        sky: sky,
+                        depth: 0.35,
+                        clouds: _farClouds,
+                        assets: _cloudAssets,
+                        baseOpacity: 0.38,
                       ),
-                    ),
+                      _PixelCloudLayer(
+                        t: t,
+                        parallax: widget.parallaxOffset,
+                        sky: sky,
+                        depth: 0.65,
+                        clouds: _midClouds,
+                        assets: _cloudAssets,
+                        baseOpacity: 0.52,
+                      ),
+                      _PixelCloudLayer(
+                        t: t,
+                        parallax: widget.parallaxOffset,
+                        sky: sky,
+                        depth: 1.00,
+                        clouds: _nearClouds,
+                        assets: _cloudAssets,
+                        baseOpacity: 0.64,
+                      ),
 
-                    // CLOUDS (3 layers)
-                    _PixelCloudLayer(
-                      t: t,
-                      parallax: widget.parallaxOffset,
-                      sky: sky,
-                      depth: 0.35,
-                      clouds: _farClouds,
-                      assets: _cloudAssets,
-                      baseOpacity: 0.38,
-                    ),
-                    _PixelCloudLayer(
-                      t: t,
-                      parallax: widget.parallaxOffset,
-                      sky: sky,
-                      depth: 0.65,
-                      clouds: _midClouds,
-                      assets: _cloudAssets,
-                      baseOpacity: 0.52,
-                    ),
-                    _PixelCloudLayer(
-                      t: t,
-                      parallax: widget.parallaxOffset,
-                      sky: sky,
-                      depth: 1.00,
-                      clouds: _nearClouds,
-                      assets: _cloudAssets,
-                      baseOpacity: 0.64,
-                    ),
+                      // MINE BACKGROUND (crossfade)
+                      Opacity(
+                        opacity: 1.0 - smoothstep(mine.t),
+                        child: _SafeAsset(path: mine.a, fallback: mine.b),
+                      ),
+                      Opacity(
+                        opacity: smoothstep(mine.t),
+                        child: _SafeAsset(path: mine.b, fallback: mine.a),
+                      ),
 
-                    // MINE BACKGROUND (crossfade)
-                    Opacity(
-                      opacity: 1.0 - smoothstep(mine.t),
-                      child: _SafeAsset(path: mine.a, fallback: mine.b),
-                    ),
-                    Opacity(
-                      opacity: smoothstep(mine.t),
-                      child: _SafeAsset(path: mine.b, fallback: mine.a),
-                    ),
-
-                    // Slight top vignette to feel more “cinematic”
-                    IgnorePointer(
-                      child: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.center,
-                            colors: [
-                              Colors.black.withOpacity(0.10 + 0.18 * sky.night),
-                              Colors.transparent,
-                            ],
+                      // Top vignette (focus)
+                      IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.center,
+                              colors: [
+                                _op(Colors.black, 0.10 + 0.18 * sky.night),
+                                Colors.transparent,
+                              ],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              },
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -256,22 +258,31 @@ class _MyPathBackgroundState extends State<MyPathBackground>
 class _SkyState {
   final Color top;
   final Color bottom;
-  final double night;     // 0..1
-  final double day;       // 0..1
-  final double sunAlpha;  // 0..1
+
+  /// 0..1
+  final double night;
+
+  /// 0..1
+  final double day;
+
+  /// 0..1 (alto in alba/tramonto)
+  final double twilight;
+
+  /// 0..1
+  final double sunAlpha;
 
   const _SkyState({
     required this.top,
     required this.bottom,
     required this.night,
     required this.day,
+    required this.twilight,
     required this.sunAlpha,
   });
 }
 
-/// Smooth sky color transitions across the day (no hard steps).
 _SkyState _skyState(DateTime now) {
-  // Palettes (you can tune these)
+  // Palettes
   const nightTop = Color(0xFF0A0F24);
   const nightBottom = Color(0xFF121834);
 
@@ -293,7 +304,6 @@ _SkyState _skyState(DateTime now) {
   const tSunriseToDay0 = 7 * 60 + 30; // 07:30
   const tSunriseToDay1 = 9 * 60; // 09:00
 
-  const tDayStable0 = 9 * 60; // 09:00
   const tDayStable1 = 17 * 60; // 17:00
 
   const tDayToSunset0 = 17 * 60; // 17:00
@@ -302,28 +312,37 @@ _SkyState _skyState(DateTime now) {
   const tSunsetToNight0 = 18 * 60 + 45; // 18:45
   const tSunsetToNight1 = 20 * 60 + 15; // 20:15
 
-  Color top, bottom;
+  Color top;
+  Color bottom;
 
   if (m < tNightToSunrise0) {
     top = nightTop;
     bottom = nightBottom;
   } else if (m < tNightToSunrise1) {
-    final u = smoothstep((m - tNightToSunrise0) / (tNightToSunrise1 - tNightToSunrise0));
+    final u = smoothstep(
+      (m - tNightToSunrise0) / (tNightToSunrise1 - tNightToSunrise0),
+    );
     top = Color.lerp(nightTop, sunriseTop, u)!;
     bottom = Color.lerp(nightBottom, sunriseBottom, u)!;
   } else if (m < tSunriseToDay1) {
-    final u = smoothstep((m - tSunriseToDay0) / (tSunriseToDay1 - tSunriseToDay0));
+    final u = smoothstep(
+      (m - tSunriseToDay0) / (tSunriseToDay1 - tSunriseToDay0),
+    );
     top = Color.lerp(sunriseTop, dayTop, u)!;
     bottom = Color.lerp(sunriseBottom, dayBottom, u)!;
   } else if (m < tDayStable1) {
     top = dayTop;
     bottom = dayBottom;
   } else if (m < tDayToSunset1) {
-    final u = smoothstep((m - tDayToSunset0) / (tDayToSunset1 - tDayToSunset0));
+    final u = smoothstep(
+      (m - tDayToSunset0) / (tDayToSunset1 - tDayToSunset0),
+    );
     top = Color.lerp(dayTop, sunsetTop, u)!;
     bottom = Color.lerp(dayBottom, sunsetBottom, u)!;
   } else if (m < tSunsetToNight1) {
-    final u = smoothstep((m - tSunsetToNight0) / (tSunsetToNight1 - tSunsetToNight0));
+    final u = smoothstep(
+      (m - tSunsetToNight0) / (tSunsetToNight1 - tSunsetToNight0),
+    );
     top = Color.lerp(sunsetTop, nightTop, u)!;
     bottom = Color.lerp(sunsetBottom, nightBottom, u)!;
   } else {
@@ -331,11 +350,12 @@ _SkyState _skyState(DateTime now) {
     bottom = nightBottom;
   }
 
-  // Night/day factors
   final night = _nightness(now);
   final day = (1.0 - night).clamp(0.0, 1.0);
 
-  // Sun alpha (less at dawn/dusk)
+  // “twilight”: alto a metà tra notte/giorno (alba e tramonto)
+  final twilight = (1.0 - (day - 0.5).abs() * 2).clamp(0.0, 1.0);
+
   final sunAlpha = (day * 0.95).clamp(0.0, 1.0);
 
   return _SkyState(
@@ -343,16 +363,19 @@ _SkyState _skyState(DateTime now) {
     bottom: bottom,
     night: night,
     day: day,
+    twilight: twilight,
     sunAlpha: sunAlpha,
   );
 }
 
 class _SkyPainter extends CustomPainter {
   final _SkyState sky;
+  final DateTime now;
   final double t;
 
   _SkyPainter({
     required this.sky,
+    required this.now,
     required this.t,
   });
 
@@ -360,169 +383,378 @@ class _SkyPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // ✅ Always fill with gradient. Never "move" the gradient -> no black bands.
-    final skyPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [sky.top, sky.bottom],
-      ).createShader(rect);
+    // ------------------------------------------------------------
+    // 1) GRADIENT (4 stop) + micro lift -> meno banding
+    // ------------------------------------------------------------
+    final mid1 = _lift(Color.lerp(sky.top, sky.bottom, 0.38)!, 0.08 * sky.twilight);
+    final mid2 = _lift(Color.lerp(sky.top, sky.bottom, 0.72)!, 0.05 * sky.twilight);
 
-    canvas.drawRect(rect, skyPaint);
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: const Alignment(0, -1),
+          end: const Alignment(0, 1),
+          stops: const [0.0, 0.45, 0.78, 1.0],
+          colors: [sky.top, mid1, mid2, sky.bottom],
+        ).createShader(rect),
+    );
 
-    // Micro dither lines: tiny life + pixel vibe, without shifting
-    const lines = 84;
-    for (int i = 0; i < lines; i++) {
-      final y = ((i / (lines - 1)) * size.height).floorToDouble();
+    // ------------------------------------------------------------
+    // 2) BLUR BLOBS (aurora) — più morbidi e meno invadenti
+    // ------------------------------------------------------------
+    final blurSigma = lerpDouble(18, 52, sky.twilight) ?? 34;
+    final blobAlphaBase = (0.06 + 0.18 * sky.twilight).clamp(0.05, 0.22);
 
-      final n = (_hash01(i * 97 + (t * 900).floor()) - 0.5);
-      final baseA = lerpDouble(0.030, 0.018, sky.night) ?? 0.024;
-      final a = (baseA + n.abs() * 0.016).clamp(0.010, 0.050);
+    final warm = Color.lerp(const Color(0xFFFFB86B), sky.bottom, 0.35)!;
+    final cool = Color.lerp(const Color(0xFF64D2FF), sky.top, 0.45)!;
 
-      canvas.drawRect(
-        Rect.fromLTWH(0, y, size.width, 1),
-        Paint()..color = Colors.white.withOpacity(a),
-      );
+    canvas.saveLayer(
+      rect,
+      Paint()..imageFilter = ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+    );
+
+    _blob(
+      canvas,
+      center: Offset(
+        size.width * (0.18 + 0.02 * math.sin(t * math.pi * 2)),
+        size.height * (0.18 + 0.02 * math.cos(t * math.pi * 2)),
+      ),
+      radius: size.width * 0.46,
+      color: cool,
+      opacity: blobAlphaBase * (0.85 - 0.25 * sky.night),
+    );
+
+    _blob(
+      canvas,
+      center: Offset(
+        size.width * (0.86 - 0.02 * math.sin(t * math.pi * 2)),
+        size.height * (0.22 + 0.02 * math.sin(t * math.pi * 2)),
+      ),
+      radius: size.width * 0.40,
+      color: warm,
+      opacity: blobAlphaBase,
+    );
+
+    _blob(
+      canvas,
+      center: Offset(
+        size.width * (0.52 + 0.015 * math.sin(t * math.pi * 4)),
+        size.height * 0.92,
+      ),
+      radius: size.width * 0.52,
+      color: cool,
+      opacity: blobAlphaBase * 0.65,
+    );
+
+    canvas.restore();
+
+    // Glow all’orizzonte (alba/tramonto)
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..blendMode = BlendMode.screen
+        ..shader = LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: const Alignment(0, 0.30),
+          colors: [
+            _op(warm, 0.05 + 0.30 * sky.twilight),
+            Colors.transparent,
+          ],
+        ).createShader(rect),
+    );
+
+    // ------------------------------------------------------------
+    // 3) STELLE (stabili, niente pop-in/out)
+    // ------------------------------------------------------------
+    if (sky.night > 0.10) {
+      _drawStars(canvas, size);
     }
 
-    // Stars (night only)
-    if (sky.night > 0.08) {
-      final p = Paint()..isAntiAlias = false;
-      for (int i = 0; i < 70; i++) {
-        final x = _hash01(i * 991) * size.width;
-        final y = _hash01(i * 773) * (size.height * 0.55);
+    // ------------------------------------------------------------
+    // 4) GRAIN / DITHER (soft) — elimina banding senza pixel-morti
+    //    (pattern stabile + micro shimmer, NO random reset)
+    // ------------------------------------------------------------
+    _drawSoftGrain(canvas, size);
+  }
 
-        final tw = 0.65 + 0.35 * math.sin(t * math.pi * 2 * (0.7 + _hash01(i * 31)));
-        final alpha = ((60 * sky.night) * tw).round().clamp(0, 85);
+  void _drawStars(Canvas canvas, Size size) {
+    // Anti "pixel morti": varie dimensioni e qualche star “soft”.
+    final count = 110;
+    final nightA = sky.night.clamp(0.0, 1.0);
 
-        p.color = Color.fromARGB(alpha, 255, 255, 255);
-        canvas.drawRect(
-          Rect.fromLTWH(x.roundToDouble(), y.roundToDouble(), 2, 2),
-          p,
-        );
+    for (int i = 0; i < count; i++) {
+      final x = _hash01(i * 991) * size.width;
+      final y = _hash01(i * 773) * (size.height * 0.55);
+
+      // Dimensione: la maggior parte 1px, qualcuna 2px, poche 3px (soft)
+      final rPick = _hash01(i * 313);
+      final r = (rPick < 0.08)
+          ? 1.6
+          : (rPick < 0.28)
+              ? 1.2
+              : 0.9;
+
+      // Twinkle dolce: +/- 8% max, mai a zero
+      final phase = _hash01(i * 101) * math.pi * 2;
+      final speed = 0.15 + 0.35 * _hash01(i * 17);
+      final tw = 0.92 + 0.08 * math.sin((t * math.pi * 2 * speed) + phase);
+
+      final base = 0.10 + 0.18 * _hash01(i * 29); // 0.10..0.28
+      final alpha = (255 * (base * nightA * tw)).round().clamp(0, 95);
+
+      // leggermente bluastre, più “cielo”
+      final col = Color.fromARGB(alpha, 220, 235, 255);
+
+      if (r >= 1.4) {
+        // star “soft” (cerchietto) per evitare puntini da pixel morto
+        final paint = Paint()
+          ..isAntiAlias = true
+          ..color = col;
+        canvas.drawCircle(Offset(x, y), r, paint);
+
+        // micro glow
+        final glow = Paint()
+          ..blendMode = BlendMode.screen
+          ..shader = RadialGradient(
+            colors: [
+              _op(col, 0.22),
+              const Color(0x00000000),
+            ],
+          ).createShader(Rect.fromCircle(center: Offset(x, y), radius: r * 4));
+        canvas.drawCircle(Offset(x, y), r * 4, glow);
+      } else {
+        // star piccola (1px) ma NON aggressiva
+        final p = Paint()..color = col;
+        canvas.drawRect(Rect.fromLTWH(x.roundToDouble(), y.roundToDouble(), 1, 1), p);
       }
     }
   }
+
+  void _drawSoftGrain(Canvas canvas, Size size) {
+    // Grain morbido: pattern stabile + shimmer dolce
+    final intensity = (0.010 + 0.020 * sky.night + 0.012 * sky.twilight).clamp(0.008, 0.045);
+
+    // Leggerissimo blur per NON sembrare pixel morti
+    final rect = Offset.zero & size;
+    canvas.saveLayer(
+      rect,
+      Paint()..imageFilter = ImageFilter.blur(sigmaX: 0.6, sigmaY: 0.6),
+    );
+
+    final paint = Paint()..blendMode = BlendMode.softLight;
+
+    // Numero specks: abbastanza per dithering, ma non pesante
+    const specks = 520;
+
+    for (int i = 0; i < specks; i++) {
+      final x = _hash01(i * 1993) * size.width;
+      final y = _hash01(i * 991) * size.height;
+
+      // shimmer dolce: mai ON/OFF
+      final phase = _hash01(i * 41) * math.pi * 2;
+      final tw = 0.85 + 0.15 * math.sin(t * math.pi * 2 * (0.20 + 0.30 * _hash01(i * 73)) + phase);
+
+      final isWhite = _hash01(i * 37) > 0.5;
+      final a = (intensity * tw).clamp(0.0, 1.0);
+
+      paint.color = _op(isWhite ? Colors.white : Colors.black, a);
+
+      final s = (_hash01(i * 19) > 0.92) ? 2.0 : 1.0;
+      canvas.drawRect(Rect.fromLTWH(x, y, s, s), paint);
+    }
+
+    canvas.restore();
+  }
+
+  void _blob(
+    Canvas canvas, {
+    required Offset center,
+    required double radius,
+    required Color color,
+    required double opacity,
+  }) {
+    final paint = Paint()
+      ..blendMode = BlendMode.screen
+      ..shader = RadialGradient(
+        colors: [
+          _op(color, opacity),
+          color.withAlpha(0),
+        ],
+      ).createShader(Rect.fromCircle(center: center, radius: radius));
+
+    canvas.drawCircle(center, radius, paint);
+  }
+
+  Color _lift(Color c, double amount) => Color.lerp(c, Colors.white, amount.clamp(0.0, 0.20))!;
 
   @override
   bool shouldRepaint(covariant _SkyPainter oldDelegate) {
     return oldDelegate.sky.top != sky.top ||
         oldDelegate.sky.bottom != sky.bottom ||
         oldDelegate.sky.night != sky.night ||
-        oldDelegate.t != t;
+        oldDelegate.sky.twilight != sky.twilight ||
+        oldDelegate.t != t ||
+        oldDelegate.now.minute != now.minute;
   }
 }
 
 // ============================================================================
-// SUN / MOON
+// SUN / MOON (time-based path)
 // ============================================================================
 
 class _SunMoonPainter extends CustomPainter {
   final _SkyState sky;
+  final DateTime now;
   final double t;
   final double parallax;
 
   _SunMoonPainter({
     required this.sky,
+    required this.now,
     required this.t,
     required this.parallax,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    final isDay = sky.day > 0.12;
+    final m = now.hour * 60 + now.minute;
+
+    const sunStart = 6 * 60;  // 06:00
+    const sunEnd = 19 * 60;   // 19:00
+
+    final isDay = m >= sunStart && m <= sunEnd && sky.day > 0.10;
 
     if (isDay) {
-      final c = _sunPos(size, parallax);
-      final pulse = 0.98 + 0.02 * math.sin(t * math.pi * 2 * 2.1);
-      final r = size.width * 0.038 * pulse;
+      final p = ((m - sunStart) / (sunEnd - sunStart)).clamp(0.0, 1.0);
+      final c = _arcPos(size, p, isMoon: false).translate(parallax * -6, parallax * 5);
 
-      // Glow
-      final glow = Paint()
+      // r leggermente variabile (respira ma poco)
+      final pulse = 0.995 + 0.005 * math.sin(t * math.pi * 2 * 1.4);
+      final r = size.width * 0.040 * pulse;
+
+      // più caldo ad alba/tramonto
+      final noonFactor = (1.0 - (p - 0.5).abs() * 2).clamp(0.0, 1.0);
+      final warmth = (1.0 - noonFactor).clamp(0.0, 1.0);
+
+      final sunCore = Color.lerp(const Color(0xFFFFE7B6), const Color(0xFFFFD08A), 0.65)!;
+      final sunEdge = Color.lerp(const Color(0xFFFFC06A), const Color(0xFFFF9B55), warmth)!;
+
+      // Corona grande (glow)
+      final corona = Paint()
         ..blendMode = BlendMode.screen
         ..shader = RadialGradient(
+          stops: const [0.0, 0.35, 1.0],
           colors: [
-            Color(0x66FFD9A0).withOpacity(0.9 * sky.sunAlpha),
-            const Color(0x00FFD9A0),
+            _op(sunEdge, 0.18 * sky.sunAlpha),
+            _op(sunEdge, 0.08 * sky.sunAlpha),
+            const Color(0x00000000),
           ],
-        ).createShader(Rect.fromCircle(center: c, radius: r * 5));
-      canvas.drawCircle(c, r * 5, glow);
+        ).createShader(Rect.fromCircle(center: c, radius: r * 7));
+      canvas.drawCircle(c, r * 7, corona);
 
-      // Disk
-      final sun = Paint()
-        ..color = const Color(0xFFFFD08A).withOpacity(0.95 * sky.sunAlpha)
-        ..isAntiAlias = true;
-      canvas.drawCircle(c, r, sun);
+      // Disco (gradiente) — evita “pallina piatta”
+      final disk = Paint()
+        ..isAntiAlias = true
+        ..shader = RadialGradient(
+          stops: const [0.0, 0.60, 1.0],
+          colors: [
+            _op(sunCore, 0.95 * sky.sunAlpha),
+            _op(Color.lerp(sunCore, sunEdge, 0.55)!, 0.95 * sky.sunAlpha),
+            _op(sunEdge, 0.95 * sky.sunAlpha),
+          ],
+        ).createShader(Rect.fromCircle(center: c, radius: r));
+      canvas.drawCircle(c, r, disk);
 
-      // Soft highlight
+      // Specular highlight (piccolo, elegante)
       final hi = Paint()
         ..blendMode = BlendMode.screen
         ..shader = RadialGradient(
           colors: [
-            Colors.white.withOpacity(0.35 * sky.sunAlpha),
-            Colors.transparent,
+            _op(Colors.white, 0.18 * sky.sunAlpha),
+            const Color(0x00000000),
           ],
         ).createShader(
-          Rect.fromCircle(center: c.translate(-r * 0.25, -r * 0.25), radius: r * 1.2),
+          Rect.fromCircle(
+            center: c.translate(-r * 0.25, -r * 0.30),
+            radius: r * 1.1,
+          ),
         );
-      canvas.drawCircle(c.translate(-r * 0.25, -r * 0.25), r * 0.9, hi);
+      canvas.drawCircle(c.translate(-r * 0.25, -r * 0.30), r * 0.9, hi);
     } else {
-      // Moon
-      final c = Offset(size.width * 0.18 + parallax * 4, size.height * 0.22 + parallax * 6);
+      // Moon — più soft, meno “pallina”
+      final totalNight = (24 * 60 - sunEnd) + sunStart;
+      final afterSunset = (m >= sunEnd) ? (m - sunEnd) : (m + (24 * 60 - sunEnd));
+      final p = (afterSunset / totalNight).clamp(0.0, 1.0);
+
+      final c = _arcPos(size, p, isMoon: true).translate(parallax * 4, parallax * 6);
       final r = size.width * 0.030;
-      final a = (160 * sky.night).round().clamp(0, 160);
+
+      final moonA = (0.55 + 0.45 * sky.night).clamp(0.0, 1.0);
 
       final glow = Paint()
         ..blendMode = BlendMode.screen
         ..shader = RadialGradient(
           colors: [
-            Color.fromARGB((80 * sky.night).round(), 210, 230, 255),
+            Color.fromARGB((65 * sky.night).round(), 205, 230, 255),
             const Color(0x00000000),
           ],
-        ).createShader(Rect.fromCircle(center: c, radius: r * 5));
-      canvas.drawCircle(c, r * 5, glow);
+        ).createShader(Rect.fromCircle(center: c, radius: r * 6));
+      canvas.drawCircle(c, r * 6, glow);
 
-      canvas.drawCircle(
-        c,
-        r,
-        Paint()..color = Color.fromARGB(a, 220, 235, 255),
-      );
+      final disk = Paint()
+        ..isAntiAlias = true
+        ..shader = RadialGradient(
+          stops: const [0.0, 0.75, 1.0],
+          colors: [
+            _op(const Color(0xFFEAF4FF), 0.65 * moonA),
+            _op(const Color(0xFFCFE4FF), 0.55 * moonA),
+            _op(const Color(0xFFB7D2F5), 0.48 * moonA),
+          ],
+        ).createShader(Rect.fromCircle(center: c, radius: r));
+      canvas.drawCircle(c, r, disk);
 
       // Crescent cut
       canvas.drawCircle(
         c.translate(r * 0.35, -r * 0.10),
         r * 0.95,
-        Paint()..color = sky.top.withOpacity(0.35),
+        Paint()..color = _op(sky.top, 0.50),
       );
     }
   }
 
-  Offset _sunPos(Size size, double parallax) {
-    // Simple arc across the sky (static day position + slight parallax)
-    // If you want it time-accurate, we can hook to minutes (but this already looks good).
-    final x = size.width * 0.78 + parallax * 4;
-    final y = size.height * 0.20 + parallax * 6;
-    return Offset(x, y);
+  Offset _arcPos(Size size, double p, {required bool isMoon}) {
+    final x = lerpDouble(size.width * 0.12, size.width * 0.88, p)!;
+    final amp = isMoon ? 0.24 : 0.30;
+    final baseY = isMoon ? 0.30 : 0.25;
+    final y = size.height * (baseY + (1 - math.sin(math.pi * p)) * amp);
+
+    // drift micro (non “balla”)
+    final driftX = math.sin(t * math.pi * 2) * (isMoon ? 0.6 : 0.4);
+    final driftY = math.cos(t * math.pi * 2) * (isMoon ? 0.4 : 0.6);
+
+    return Offset(x + driftX, y + driftY);
   }
 
   @override
   bool shouldRepaint(covariant _SunMoonPainter oldDelegate) {
     return oldDelegate.sky.day != sky.day ||
         oldDelegate.sky.night != sky.night ||
+        oldDelegate.parallax != parallax ||
         oldDelegate.t != t ||
-        oldDelegate.parallax != parallax;
+        oldDelegate.now.minute != now.minute;
   }
 }
 
 // ============================================================================
-// CLOUDS (PNG sprites)
+// CLOUDS (pixel layer)
 // ============================================================================
 
 class _CloudSprite {
   final int assetIndex;
-  final double x;      // 0..1
-  final double y;      // 0..1
-  final double speed;  // how fast it moves
+  final double x; // 0..1
+  final double y; // 0..1
+  final double speed;
   final double scale;
   final double wobble;
 
@@ -541,101 +773,61 @@ class _PixelCloudLayer extends StatelessWidget {
   final double parallax;
   final _SkyState sky;
   final double depth;
-  final double baseOpacity;
   final List<_CloudSprite> clouds;
   final List<String> assets;
+  final double baseOpacity;
 
   const _PixelCloudLayer({
     required this.t,
     required this.parallax,
     required this.sky,
     required this.depth,
-    required this.baseOpacity,
     required this.clouds,
     required this.assets,
+    required this.baseOpacity,
   });
 
   @override
   Widget build(BuildContext context) {
     if (assets.isEmpty || clouds.isEmpty) return const SizedBox.shrink();
 
-    // Less clouds at night
-    final nightFade = (1.0 - sky.night * 0.70).clamp(0.0, 1.0);
-    final opacity = (baseOpacity * nightFade).clamp(0.0, 1.0);
-
-    // Slight dark tint at night (optional)
-    final tintStrength = (sky.night * 0.28).clamp(0.0, 0.28);
-    final tint = ColorFilter.mode(
-      Colors.black.withOpacity(tintStrength),
-      BlendMode.srcATop,
-    );
+    // Night makes clouds less visible
+    final layerOpacity = (baseOpacity * (1.0 - 0.55 * sky.night)).clamp(0.0, 1.0);
 
     return IgnorePointer(
       child: Opacity(
-        opacity: opacity,
-        child: ColorFiltered(
-          colorFilter: tint,
-          child: Stack(
-            children: [
-              for (int i = 0; i < clouds.length; i++)
-                _OneCloud(
-                  cloud: clouds[i],
-                  t: t,
-                  depth: depth,
-                  parallax: parallax,
-                  asset: assets[clouds[i].assetIndex % assets.length],
-                ),
-            ],
-          ),
+        opacity: layerOpacity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            for (final c in clouds) _cloudWidget(c),
+          ],
         ),
       ),
     );
   }
-}
 
-class _OneCloud extends StatelessWidget {
-  final _CloudSprite cloud;
-  final double t;
-  final double depth;
-  final double parallax;
-  final String asset;
+  Widget _cloudWidget(_CloudSprite c) {
+    final path = assets[c.assetIndex.clamp(0, assets.length - 1)];
 
-  const _OneCloud({
-    required this.cloud,
-    required this.t,
-    required this.depth,
-    required this.parallax,
-    required this.asset,
-  });
+    // Horizontal loop (0..1)
+    final u = (c.x + t * c.speed) % 1.0;
 
-  @override
-  Widget build(BuildContext context) {
-    const W = 1024.0;
-    const H = 1536.0;
-
-    // Wrap: gives infinite loop
-    final speed = cloud.speed * (0.75 + depth * 0.75);
-    final x01 = (cloud.x + t * speed) % 1.25; // go a bit beyond
-    final baseX = x01 * W - 220; // start off-screen left
-    final baseY = cloud.y * H;
-
-    final bob = math.sin(t * math.pi * 2 * cloud.wobble) * (2.0 + 6.0 * depth);
-    final px = parallax * 16 * depth;
-
-    // Pixel-crisp rounding
-    final left = (baseX + px).roundToDouble();
-    final top = (baseY + bob).roundToDouble();
+    final dx = (u * 1024) + parallax * -10 * depth;
+    final dy = (c.y * 1536) + math.sin(t * math.pi * 2 * c.wobble) * (4 * depth);
 
     return Positioned(
-      left: left,
-      top: top,
+      left: dx - 200,
+      top: dy,
       child: Transform.scale(
-        scale: cloud.scale,
-        child: Image.asset(
-          asset,
+        scale: c.scale,
+        child: _SafeAsset(
+          path: path,
+          fallback: path,
+          width: 420,
+          height: 240,
+          fit: BoxFit.contain,
           filterQuality: FilterQuality.none,
-          isAntiAlias: false,
-          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
         ),
       ),
     );
@@ -646,65 +838,85 @@ class _OneCloud extends StatelessWidget {
 // MINE BACKGROUND (crossfade)
 // ============================================================================
 
-class _Blend {
-  final String a, b;
-  final double t;
-  const _Blend(this.a, this.b, this.t);
+class _MineBlend {
+  final String a;
+  final String b;
+  final double t; // 0..1
+  const _MineBlend(this.a, this.b, this.t);
 }
 
-_Blend _computeMineBlend(DateTime now) {
-  // Change these paths if your project differs.
+_MineBlend _computeMineBlend(DateTime now) {
+  const night = 'assets/images/bg/mine_night.png';
   const sunrise = 'assets/images/bg/mine_sunrise.png';
   const day = 'assets/images/bg/mine_day.png';
   const sunset = 'assets/images/bg/mine_sunset.png';
-  const night = 'assets/images/bg/mine_night.png';
 
   final m = now.hour * 60 + now.minute;
 
-  // Blend windows
-  const sunriseStart = 6 * 60;
-  const sunriseEnd = 8 * 60;
+  const dawn0 = 5 * 60 + 30; // 05:30
+  const dawn1 = 8 * 60; // 08:00
+  const dusk0 = 16 * 60 + 45; // 16:45
+  const dusk1 = 19 * 60; // 19:00
+  const night0 = 19 * 60; // 19:00
+  const night1 = 21 * 60; // 21:00
 
-  const sunsetStart = 17 * 60;
-  const sunsetEnd = 19 * 60;
-
-  const nightStart = 20 * 60 + 30;
-
-  if (m >= sunriseStart && m < sunriseEnd) {
-    return _Blend(sunrise, day, (m - sunriseStart) / (sunriseEnd - sunriseStart));
+  if (m < dawn0) return const _MineBlend(night, night, 0);
+  if (m < dawn1) {
+    final u = smoothstep((m - dawn0) / (dawn1 - dawn0));
+    return _MineBlend(night, sunrise, u);
   }
-  if (m >= sunriseEnd && m < sunsetStart) return const _Blend(day, day, 0);
-
-  if (m >= sunsetStart && m < sunsetEnd) {
-    return _Blend(day, sunset, (m - sunsetStart) / (sunsetEnd - sunsetStart));
+  if (m < dusk0) return const _MineBlend(day, day, 0);
+  if (m < dusk1) {
+    final u = smoothstep((m - dusk0) / (dusk1 - dusk0));
+    return _MineBlend(day, sunset, u);
   }
-  if (m >= sunsetEnd && m < nightStart) {
-    return _Blend(sunset, night, (m - sunsetEnd) / (nightStart - sunsetEnd));
+  if (m < night1) {
+    final u = smoothstep((m - night0) / (night1 - night0));
+    return _MineBlend(sunset, night, u);
   }
-  return const _Blend(night, night, 0);
+  return const _MineBlend(night, night, 0);
 }
+
+// ============================================================================
+// SAFE ASSET
+// ============================================================================
 
 class _SafeAsset extends StatelessWidget {
   final String path;
   final String fallback;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+
+  // ✅ non-nullable con default
+  final FilterQuality filterQuality;
 
   const _SafeAsset({
     required this.path,
     required this.fallback,
+    this.width,
+    this.height,
+    this.fit = BoxFit.cover,
+    this.filterQuality = FilterQuality.low, // default sensato
   });
 
   @override
   Widget build(BuildContext context) {
     return Image.asset(
       path,
-      fit: BoxFit.fill,
-      filterQuality: FilterQuality.none,
-      errorBuilder: (_, __, ___) {
+      width: width,
+      height: height,
+      fit: fit,
+      filterQuality: filterQuality,
+      errorBuilder: (context, error, stackTrace) {
+        if (fallback == path) return const SizedBox.shrink();
         return Image.asset(
           fallback,
-          fit: BoxFit.fill,
-          filterQuality: FilterQuality.none,
-          errorBuilder: (_, __, ___) => const SizedBox.expand(),
+          width: width,
+          height: height,
+          fit: fit,
+          filterQuality: filterQuality,
+          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
         );
       },
     );
@@ -712,34 +924,57 @@ class _SafeAsset extends StatelessWidget {
 }
 
 // ============================================================================
-// HELPERS
+// UTILS
 // ============================================================================
 
-double _nightness(DateTime now) {
-  // Soft night ramp between ~19:00 and ~23:00
-  final m = now.hour * 60 + now.minute;
-  const nightFrom = 19 * 60;
-  const nightTo = 23 * 60;
-  final x = ((m - nightFrom) / (nightTo - nightFrom)).clamp(0.0, 1.0);
-  return smoothstep(x);
+double smoothstep(double x) {
+  final t = x.clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
 }
 
-double smoothstep(double t) => t * t * (3 - 2 * t);
+double _nightness(DateTime now) {
+  final m = now.hour * 60 + now.minute;
 
-double _hash01(int n) {
-  n = (n ^ 0xA3C59AC3) * 2654435761;
-  n = (n ^ (n >> 16)) * 2246822519;
-  n = (n ^ (n >> 13)) * 3266489917;
-  n = n ^ (n >> 16);
-  return (n & 0xFFFFFF) / 0xFFFFFF;
+  const dawn0 = 5 * 60 + 30; // 05:30
+  const dawn1 = 7 * 60 + 30; // 07:30
+  const dusk0 = 18 * 60 + 45; // 18:45
+  const dusk1 = 20 * 60 + 15; // 20:15
+
+  if (m < dawn0) return 1.0;
+  if (m < dawn1) {
+    final u = smoothstep((m - dawn0) / (dawn1 - dawn0));
+    return 1.0 - u;
+  }
+  if (m < dusk0) return 0.0;
+  if (m < dusk1) {
+    final u = smoothstep((m - dusk0) / (dusk1 - dusk0));
+    return u;
+  }
+  return 1.0;
+}
+
+Color _op(Color c, double opacity) {
+  final o = opacity.clamp(0.0, 1.0);
+  return c.withAlpha((o * 255).round());
+}
+
+double _hash01(int x) {
+  var v = x;
+  v = (v ^ 61) ^ (v >> 16);
+  v = v + (v << 3);
+  v = v ^ (v >> 4);
+  v = v * 0x27d4eb2d;
+  v = v ^ (v >> 15);
+  final u = v & 0x7fffffff;
+  return (u % 100000) / 100000.0;
 }
 
 class _Seeded {
   int _state;
-  _Seeded(this._state);
+  _Seeded(int seed) : _state = seed;
 
   double nextDouble() {
-    _state = 1664525 * _state + 1013904223;
-    return ((_state >> 8) & 0xFFFFFF) / 0xFFFFFF;
+    _state = (1664525 * _state + 1013904223) & 0x7fffffff;
+    return (_state % 100000) / 100000.0;
   }
 }
