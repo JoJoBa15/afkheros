@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../core/widgets/app_background.dart';
 import '../core/widgets/pixel_bottom_nav_bar.dart';
 import '../core/widgets/profile_drawer.dart';
 import '../core/widgets/currency_chip.dart';
@@ -34,37 +35,60 @@ class _RootShellState extends State<RootShell> {
     ClanScreen(),
   ];
 
+  static const double _navSafePadding = 112; // spazio per non finire sotto la navbar glass
+
   @override
   Widget build(BuildContext context) {
     final isMyPath = _index == 2;
+    final topPad = MediaQuery.of(context).padding.top + (isMyPath ? 0 : kToolbarHeight);
+    final bottomPad = _navSafePadding + MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
+      backgroundColor: Colors.transparent,
       drawer: const ProfileDrawer(),
 
-      // SOLO su MyPath: il body passa dietro l’AppBar (sfondo fino in cima)
-      extendBodyBehindAppBar: isMyPath,
+      // ✅ Serve per avere background anche dietro AppBar e dietro navbar
+      extendBody: true,
+      extendBodyBehindAppBar: true,
 
       appBar: isMyPath ? _buildMyPathAppBar() : _buildDefaultAppBar(),
 
-      body: AnimatedSwitcher(
-        duration: const Duration(milliseconds: 350),
-        switchInCurve: Curves.easeOutCubic,
-        switchOutCurve: Curves.easeInCubic,
-        transitionBuilder: (child, animation) {
-          final fade = FadeTransition(opacity: animation, child: child);
-          final offsetTween = Tween<Offset>(
-            begin: const Offset(0.02, 0),
-            end: Offset.zero,
-          ).animate(animation);
-          return SlideTransition(position: offsetTween, child: fade);
-        },
-        child: KeyedSubtree(
-          key: ValueKey(_index),
-          child: IndexedStack(
-            index: _index,
-            children: _tabs,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // ✅ Background globale riusando quello già fatto
+          const Positioned.fill(child: AppBackground()),
+
+          // ✅ Tutte le altre tab più “dark” sopra, così riusi lo stesso gradiente/scene
+          if (!isMyPath)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: Container(color: Colors.black.withOpacity(0.55)),
+              ),
+            ),
+
+          // Contenuto tab (con padding solo quando NON è MyPath)
+          Padding(
+            padding: EdgeInsets.fromLTRB(0, topPad, 0, isMyPath ? 0 : bottomPad),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final fade = FadeTransition(opacity: animation, child: child);
+                final offsetTween = Tween(
+                  begin: const Offset(0.02, 0),
+                  end: Offset.zero,
+                ).animate(animation);
+                return SlideTransition(position: offsetTween, child: fade);
+              },
+              child: KeyedSubtree(
+                key: ValueKey(_index),
+                child: _tabs[_index],
+              ),
+            ),
           ),
-        ),
+        ],
       ),
 
       bottomNavigationBar: PixelBottomNavBar(
@@ -76,17 +100,46 @@ class _RootShellState extends State<RootShell> {
 
   PreferredSizeWidget _buildDefaultAppBar() {
     return AppBar(
-      backgroundColor: const Color(0xFF1C1C1C),
+      backgroundColor: Colors.transparent,
+      surfaceTintColor: Colors.transparent,
       elevation: 0,
+      scrolledUnderElevation: 0,
+      systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
+        statusBarColor: Colors.transparent,
+      ),
       centerTitle: false,
       titleSpacing: 0,
+
+      // ✅ Glass AppBar (così si vede il background dietro e non “blocco grigio”)
+      flexibleSpace: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withOpacity(0.18),
+              border: Border(
+                bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
+              ),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.06),
+                  Colors.white.withOpacity(0.02),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+
       leading: Builder(
         builder: (context) => IconButton(
           tooltip: 'Profilo',
-          icon: const CircleAvatar(
+          icon: CircleAvatar(
             radius: 16,
-            backgroundColor: Color(0xFF2A2A2A),
-            child: Icon(Icons.person, size: 18),
+            backgroundColor: Colors.white.withOpacity(0.10),
+            child: const Icon(Icons.person, size: 18, color: Colors.white),
           ),
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
@@ -105,11 +158,9 @@ class _RootShellState extends State<RootShell> {
       shadowColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
-
       systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
       ),
-
       automaticallyImplyLeading: false,
       titleSpacing: 0,
       toolbarHeight: 72,
@@ -126,7 +177,7 @@ class _MyPathAppBarContent extends StatelessWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Menu',
-      barrierColor: Colors.transparent, // lo gestiamo noi nel blur overlay
+      barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -187,18 +238,13 @@ class _MyPathMenuOverlay extends StatelessWidget {
         animation: progress,
         builder: (context, _) {
           final v = progress.value;
-
-          // Blur e dim più morbidi (meno “nero”)
           final sigma = 14.0 * v;
           final dim = 0.30 * v;
-
-          // Card animata separatamente
           final scale = 0.965 + (1.0 - 0.965) * v;
 
           return SizedBox.expand(
             child: Stack(
               children: [
-                // ✅ FIX bande laterali: ClipRect + BackdropFilter full-screen
                 Positioned.fill(
                   child: ClipRect(
                     child: GestureDetector(
@@ -211,7 +257,6 @@ class _MyPathMenuOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
-
                 Center(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 18),
@@ -263,7 +308,6 @@ class _MyPathMenuCard extends StatelessWidget {
                     offset: const Offset(0, 18),
                   ),
                 ],
-                // ✅ più moderno / meno nero: glass scuro “blu-grigio”
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -276,7 +320,6 @@ class _MyPathMenuCard extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Header
                   Row(
                     children: [
                       Container(
@@ -287,8 +330,7 @@ class _MyPathMenuCard extends StatelessWidget {
                           color: Colors.white.withOpacity(0.10),
                           border: Border.all(color: Colors.white.withOpacity(0.14)),
                         ),
-                        child: const Icon(Icons.person_outline,
-                            color: Colors.white, size: 22),
+                        child: const Icon(Icons.person_outline, color: Colors.white, size: 22),
                       ),
                       const SizedBox(width: 12),
                       const Expanded(
@@ -309,58 +351,10 @@ class _MyPathMenuCard extends StatelessWidget {
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 12),
                   _DividerSoftModern(),
                   const SizedBox(height: 14),
 
-                  // ✅ 3 SEZIONI + proposta concreta (Profilo, App, Focus)
-                  const _SectionTitle('Profilo'),
-                  const SizedBox(height: 8),
-                  _ModernTile(
-                    icon: Icons.manage_accounts_outlined,
-                    title: 'Gestione profilo',
-                    subtitle: 'Account, avatar, progressi',
-                    onTap: () {
-                      onClose();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('TODO: schermata profilo')),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-                  const _SectionTitle('App'),
-                  const SizedBox(height: 8),
-                  _ModernTile(
-                    icon: Icons.tune_rounded,
-                    title: 'Impostazioni app',
-                    subtitle: 'Audio, notifiche, privacy',
-                    onTap: () {
-                      onClose();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('TODO: impostazioni app')),
-                      );
-                    },
-                  ),
-
-                  const SizedBox(height: 14),
-                  const _SectionTitle('Focus'),
-                  const SizedBox(height: 8),
-                  _ModernTile(
-                    icon: Icons.timer_outlined,
-                    title: 'Strumenti Focus',
-                    subtitle: 'Preset, suoni, blocco distrazioni',
-                    onTap: () {
-                      onClose();
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('TODO: strumenti focus')),
-                      );
-                    },
-                  ),
-
-                  // ✅ OLED-safe: teniamolo “temporaneo”
-                  const SizedBox(height: 14),
                   const _SectionTitle('Accessibilità'),
                   const SizedBox(height: 8),
                   _ModernTile(
@@ -377,9 +371,7 @@ class _MyPathMenuCard extends StatelessWidget {
                     ),
                     onTap: () {
                       settings.setFocusDisplayMode(
-                        settings.isOledSafe
-                            ? FocusDisplayMode.normal
-                            : FocusDisplayMode.oledSafe,
+                        settings.isOledSafe ? FocusDisplayMode.normal : FocusDisplayMode.oledSafe,
                       );
                     },
                   ),
@@ -393,7 +385,6 @@ class _MyPathMenuCard extends StatelessWidget {
   }
 }
 
-/// Card “pill” moderne: niente bordi netti, gradient soft + doppia ombra.
 class _ModernTile extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -427,13 +418,11 @@ class _ModernTile extends StatelessWidget {
             ],
           ),
           boxShadow: [
-            // shadow scura sotto
             BoxShadow(
               color: Colors.black.withOpacity(0.25),
               blurRadius: 16,
               offset: const Offset(0, 10),
             ),
-            // highlight leggero sopra (effetto “pill” moderno)
             BoxShadow(
               color: Colors.white.withOpacity(0.05),
               blurRadius: 14,

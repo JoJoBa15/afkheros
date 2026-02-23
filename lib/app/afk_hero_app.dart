@@ -12,9 +12,13 @@ class AfkHeroApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF141414),
+
+        // Base scurissima (se per qualche route manca il background).
+        scaffoldBackgroundColor: const Color(0xFF0B0D12),
+
+        // ✅ Via il giallo: seed freddo (blu)
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFB68D40),
+          seedColor: const Color(0xFF5B7CFF),
           brightness: Brightness.dark,
         ),
       ),

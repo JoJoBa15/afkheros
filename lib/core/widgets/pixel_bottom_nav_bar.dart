@@ -1,14 +1,13 @@
+import 'dart:math' as math;
 import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
-/// Bottom navigation bar "Liquid Glass" (sempre uguale, non dipende dall'orario).
-/// - Blur + tint scuro (glass) + bordino luminoso
-/// - Pulsante centrale "orb" leggermente sollevato
-/// - Selezione animata (pill soft) sui tab laterali
-///
-/// Usata da RootShell:
-/// bottomNavigationBar: PixelBottomNavBar(currentIndex: _index, onChanged: ...)
-class PixelBottomNavBar extends StatelessWidget {
+/// Bottom navigation bar "Liquid Glass"
+/// - Blur + glass più trasparente (si vede davvero il background)
+/// - Glow gradiente ANIMATO (profondità, non grigio fisso)
+/// - Orb centrale sollevato
+class PixelBottomNavBar extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onChanged;
 
@@ -18,18 +17,41 @@ class PixelBottomNavBar extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const double _barHeight = 74;
-  static const double _radius = 26;
-  static const double _centerSize = 58;
-  static const double _centerLift = 18;
+  static const double barHeight = 74;
+  static const double radius = 26;
+  static const double centerSize = 58;
+  static const double centerLift = 18;
+
+  @override
+  State<PixelBottomNavBar> createState() => _PixelBottomNavBarState();
+}
+
+class _PixelBottomNavBarState extends State<PixelBottomNavBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _anim;
+
+  @override
+  void initState() {
+    super.initState();
+    _anim = AnimationController(vsync: this, duration: const Duration(seconds: 10))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final primary = scheme.primary;
+    final secondary = scheme.secondary;
+    final tertiary = scheme.tertiary;
 
-    // Colori glass (tint scuro + highlight)
-    final glassTint = _op(const Color(0xFF0B0B0B), 0.35);
+    // ✅ più trasparente -> si vede il background dietro
+    final glassTint = _op(Colors.black, 0.14);
     final border = _op(Colors.white, 0.14);
     final highlight = _op(Colors.white, 0.10);
 
@@ -38,84 +60,96 @@ class PixelBottomNavBar extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
         child: SizedBox(
-          height: _barHeight + _centerLift, // spazio extra per l'orb sollevato
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Glass background (solo la barra, non l'orb)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _GlassShell(
-                  height: _barHeight,
-                  radius: _radius,
-                  tint: glassTint,
-                  border: border,
-                  highlight: highlight,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _GlassNavItem(
-                          label: 'Shop',
-                          icon: Icons.shopping_bag,
-                          selected: currentIndex == 0,
-                          onTap: () => onChanged(0),
-                          selectedColor: primary,
-                        ),
-                      ),
-                      Expanded(
-                        child: _GlassNavItem(
-                          label: 'Forge',
-                          icon: Icons.hardware,
-                          selected: currentIndex == 1,
-                          onTap: () => onChanged(1),
-                          selectedColor: primary,
-                        ),
-                      ),
+          height: PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift,
+          child: AnimatedBuilder(
+            animation: _anim,
+            builder: (context, _) {
+              final t = _anim.value; // 0..1
+              final dx = math.sin(t * math.pi * 2) * 0.35;
 
-                      // spazio centrale per l'orb
-                      const SizedBox(width: _centerSize + 16),
-
-                      Expanded(
-                        child: _GlassNavItem(
-                          label: 'Equip',
-                          icon: Icons.backpack,
-                          selected: currentIndex == 3,
-                          onTap: () => onChanged(3),
-                          selectedColor: primary,
-                        ),
+              return Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _GlassShell(
+                      height: PixelBottomNavBar.barHeight,
+                      radius: PixelBottomNavBar.radius,
+                      tint: glassTint,
+                      border: border,
+                      highlight: highlight,
+                      glowDx: dx,
+                      glowColors: [
+                        primary.withOpacity(0.22),
+                        tertiary.withOpacity(0.16),
+                        secondary.withOpacity(0.12),
+                      ],
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _GlassNavItem(
+                              label: 'Shop',
+                              icon: Icons.shopping_bag,
+                              selected: widget.currentIndex == 0,
+                              onTap: () => widget.onChanged(0),
+                              selectedColor: primary,
+                            ),
+                          ),
+                          Expanded(
+                            child: _GlassNavItem(
+                              label: 'Forge',
+                              icon: Icons.hardware,
+                              selected: widget.currentIndex == 1,
+                              onTap: () => widget.onChanged(1),
+                              selectedColor: primary,
+                            ),
+                          ),
+                          const SizedBox(width: PixelBottomNavBar.centerSize + 16),
+                          Expanded(
+                            child: _GlassNavItem(
+                              label: 'Equip',
+                              icon: Icons.backpack,
+                              selected: widget.currentIndex == 3,
+                              onTap: () => widget.onChanged(3),
+                              selectedColor: primary,
+                            ),
+                          ),
+                          Expanded(
+                            child: _GlassNavItem(
+                              label: 'Clan',
+                              icon: Icons.shield,
+                              selected: widget.currentIndex == 4,
+                              onTap: () => widget.onChanged(4),
+                              selectedColor: primary,
+                            ),
+                          ),
+                        ],
                       ),
-                      Expanded(
-                        child: _GlassNavItem(
-                          label: 'Clan',
-                          icon: Icons.shield,
-                          selected: currentIndex == 4,
-                          onTap: () => onChanged(4),
-                          selectedColor: primary,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              ),
 
-              // Orb centrale (sollevato)
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Transform.translate(
-                  offset: const Offset(0, -_centerLift),
-                  child: _CenterOrbItem(
-                    size: _centerSize,
-                    label: 'My Path',
-                    icon: Icons.explore,
-                    selected: currentIndex == 2,
-                    onTap: () => onChanged(2),
-                    accent: primary,
+                  Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Transform.translate(
+                      offset: const Offset(0, -0.5) ,
+                      child: _CenterOrbItem(
+                        size: PixelBottomNavBar.centerSize,
+                        label: 'My Path',
+                        icon: Icons.explore,
+                        selected: widget.currentIndex == 2,
+                        onTap: () => widget.onChanged(2),
+                        accent: primary,
+                        glowDx: dx,
+                        glowA: primary,
+                        glowB: tertiary,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       ),
@@ -129,6 +163,8 @@ class _GlassShell extends StatelessWidget {
   final Color tint;
   final Color border;
   final Color highlight;
+  final double glowDx;
+  final List<Color> glowColors;
   final Widget child;
 
   const _GlassShell({
@@ -137,6 +173,8 @@ class _GlassShell extends StatelessWidget {
     required this.tint,
     required this.border,
     required this.highlight,
+    required this.glowDx,
+    required this.glowColors,
     required this.child,
   });
 
@@ -169,13 +207,34 @@ class _GlassShell extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  _op(Colors.white, 0.08),
-                  _op(Colors.white, 0.03),
+                  _op(Colors.white, 0.06),
+                  _op(Colors.white, 0.02),
                 ],
               ),
             ),
             child: Stack(
               children: [
+                // ✅ Glow “profondità” che si muove
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Transform.translate(
+                      offset: Offset(glowDx * 50, 0),
+                      child: ImageFiltered(
+                        imageFilter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: const Alignment(-1, -1),
+                              end: const Alignment(1, 1),
+                              colors: glowColors,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
                 // highlight top (effetto vetro)
                 Positioned.fill(
                   child: IgnorePointer(
@@ -196,7 +255,6 @@ class _GlassShell extends StatelessWidget {
                   ),
                 ),
 
-                // content
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   child: child,
@@ -227,8 +285,7 @@ class _GlassNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = Colors.white;
-    final inactive = _op(base, 0.68);
+    final inactive = _op(Colors.white, 0.68);
     final active = selectedColor;
 
     return Material(
@@ -286,6 +343,10 @@ class _CenterOrbItem extends StatelessWidget {
   final VoidCallback onTap;
   final Color accent;
 
+  final double glowDx;
+  final Color glowA;
+  final Color glowB;
+
   const _CenterOrbItem({
     required this.size,
     required this.label,
@@ -293,11 +354,14 @@ class _CenterOrbItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     required this.accent,
+    required this.glowDx,
+    required this.glowA,
+    required this.glowB,
   });
 
   @override
   Widget build(BuildContext context) {
-    final inactiveIcon = _op(Colors.white, 0.85);
+    final inactiveIcon = _op(Colors.white, 0.88);
     final activeIcon = const Color(0xFF0B0B0B);
 
     return Material(
@@ -310,7 +374,6 @@ class _CenterOrbItem extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Orb
               Container(
                 width: size,
                 height: size,
@@ -324,7 +387,7 @@ class _CenterOrbItem extends StatelessWidget {
                     ),
                     if (selected)
                       BoxShadow(
-                        color: _op(accent, 0.35),
+                        color: _op(accent, 0.30),
                         blurRadius: 22,
                         offset: const Offset(0, 10),
                       ),
@@ -333,40 +396,44 @@ class _CenterOrbItem extends StatelessWidget {
                 child: ClipOval(
                   child: BackdropFilter(
                     filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: selected ? _op(accent, 0.35) : _op(Colors.white, 0.16),
-                          width: 1,
-                        ),
-                        gradient: selected
-                            ? RadialGradient(
-                                center: const Alignment(-0.25, -0.35),
-                                stops: const [0.0, 0.65, 1.0],
-                                colors: [
-                                  _op(Colors.white, 0.35),
-                                  _op(accent, 0.95),
-                                  _op(accent, 0.65),
-                                ],
-                              )
-                            : RadialGradient(
-                                center: const Alignment(-0.25, -0.35),
-                                stops: const [0.0, 0.70, 1.0],
-                                colors: [
-                                  _op(Colors.white, 0.20),
-                                  _op(const Color(0xFF141414), 0.70),
-                                  _op(const Color(0xFF0B0B0B), 0.80),
-                                ],
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Transform.translate(
+                            offset: Offset(glowDx * 18, 0),
+                            child: ImageFiltered(
+                              imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  gradient: RadialGradient(
+                                    center: const Alignment(-0.25, -0.35),
+                                    stops: const [0.0, 0.70, 1.0],
+                                    colors: [
+                                      Colors.white.withOpacity(0.22),
+                                      glowA.withOpacity(0.55),
+                                      glowB.withOpacity(0.30),
+                                    ],
+                                  ),
+                                ),
                               ),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          icon,
-                          size: 26,
-                          color: selected ? activeIcon : inactiveIcon,
+                            ),
+                          ),
                         ),
-                      ),
+                        Positioned.fill(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: selected ? _op(accent, 0.35) : _op(Colors.white, 0.16),
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Center(
+                          child: Icon(icon, size: 26, color: selected ? activeIcon : inactiveIcon),
+                        ),
+                      ],
                     ),
                   ),
                 ),
