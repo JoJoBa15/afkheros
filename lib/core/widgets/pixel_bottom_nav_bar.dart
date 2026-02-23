@@ -1,10 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 
-/// Bottom navigation bar “in stile gioco” con 5 tab.
-/// - Sfondo scuro “pietra/legno”
-/// - Pulsante centrale leggermente più grande
-/// - Importante: SafeArea è messo FUORI dalla Container con altezza fissa,
-///   così evitiamo il classico errore "Bottom overflowed by ...".
+/// Bottom navigation bar "Liquid Glass" (sempre uguale, non dipende dall'orario).
+/// - Blur + tint scuro (glass) + bordino luminoso
+/// - Pulsante centrale "orb" leggermente sollevato
+/// - Selezione animata (pill soft) sui tab laterali
+///
+/// Usata da RootShell:
+/// bottomNavigationBar: PixelBottomNavBar(currentIndex: _index, onChanged: ...)
 class PixelBottomNavBar extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onChanged;
@@ -15,165 +18,378 @@ class PixelBottomNavBar extends StatelessWidget {
     required this.onChanged,
   });
 
-  /// Altezza della barra (solo la barra, senza considerare il padding del SafeArea).
   static const double _barHeight = 74;
+  static const double _radius = 26;
+  static const double _centerSize = 58;
+  static const double _centerLift = 18;
 
   @override
   Widget build(BuildContext context) {
-    // Perché SafeArea fuori?
-    // Se lo metti dentro una Container con height fissa, il padding del SafeArea
-    // "mangia" spazio interno e i widget rischiano di non starci => overflow.
-    // Così invece la barra resta alta _barHeight e il SafeArea aggiunge spazio extra fuori.
+    final scheme = Theme.of(context).colorScheme;
+    final primary = scheme.primary;
+
+    // Colori glass (tint scuro + highlight)
+    final glassTint = _op(const Color(0xFF0B0B0B), 0.35);
+    final border = _op(Colors.white, 0.14);
+    final highlight = _op(Colors.white, 0.10);
+
     return SafeArea(
       top: false,
-      child: Container(
-        height: _barHeight,
-        decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
-          border: Border(top: BorderSide(color: Color(0xFF333333))),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _NavItem(
-              label: 'Shop',
-              icon: Icons.shopping_bag,
-              selected: currentIndex == 0,
-              onTap: () => onChanged(0),
-            ),
-            _NavItem(
-              label: 'Forge',
-              icon: Icons.hardware,
-              selected: currentIndex == 1,
-              onTap: () => onChanged(1),
-            ),
-            _CenterNavItem(
-              label: 'My Path',
-              icon: Icons.explore,
-              selected: currentIndex == 2,
-              onTap: () => onChanged(2),
-            ),
-            _NavItem(
-              label: 'Equip',
-              icon: Icons.backpack,
-              selected: currentIndex == 3,
-              onTap: () => onChanged(3),
-            ),
-            _NavItem(
-              label: 'Clan',
-              icon: Icons.shield,
-              selected: currentIndex == 4,
-              onTap: () => onChanged(4),
-            ),
-          ],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        child: SizedBox(
+          height: _barHeight + _centerLift, // spazio extra per l'orb sollevato
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Glass background (solo la barra, non l'orb)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _GlassShell(
+                  height: _barHeight,
+                  radius: _radius,
+                  tint: glassTint,
+                  border: border,
+                  highlight: highlight,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _GlassNavItem(
+                          label: 'Shop',
+                          icon: Icons.shopping_bag,
+                          selected: currentIndex == 0,
+                          onTap: () => onChanged(0),
+                          selectedColor: primary,
+                        ),
+                      ),
+                      Expanded(
+                        child: _GlassNavItem(
+                          label: 'Forge',
+                          icon: Icons.hardware,
+                          selected: currentIndex == 1,
+                          onTap: () => onChanged(1),
+                          selectedColor: primary,
+                        ),
+                      ),
+
+                      // spazio centrale per l'orb
+                      const SizedBox(width: _centerSize + 16),
+
+                      Expanded(
+                        child: _GlassNavItem(
+                          label: 'Equip',
+                          icon: Icons.backpack,
+                          selected: currentIndex == 3,
+                          onTap: () => onChanged(3),
+                          selectedColor: primary,
+                        ),
+                      ),
+                      Expanded(
+                        child: _GlassNavItem(
+                          label: 'Clan',
+                          icon: Icons.shield,
+                          selected: currentIndex == 4,
+                          onTap: () => onChanged(4),
+                          selectedColor: primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Orb centrale (sollevato)
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Transform.translate(
+                  offset: const Offset(0, -_centerLift),
+                  child: _CenterOrbItem(
+                    size: _centerSize,
+                    label: 'My Path',
+                    icon: Icons.explore,
+                    selected: currentIndex == 2,
+                    onTap: () => onChanged(2),
+                    accent: primary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Elemento “standard” della nav: icona + label.
-/// Usare mainAxisSize.min evita che la Column cerchi altezza extra
-/// e riduce la probabilità di overflow su schermi piccoli / gesture bar grandi.
-class _NavItem extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final bool selected;
-  final VoidCallback onTap;
+class _GlassShell extends StatelessWidget {
+  final double height;
+  final double radius;
+  final Color tint;
+  final Color border;
+  final Color highlight;
+  final Widget child;
 
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.selected,
-    required this.onTap,
+  const _GlassShell({
+    required this.height,
+    required this.radius,
+    required this.tint,
+    required this.border,
+    required this.highlight,
+    required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = selected ? Theme.of(context).colorScheme.primary : Colors.white70;
+    final r = BorderRadius.circular(radius);
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        // Padding un po' più “safe” (vertical 8) per stare bene anche con SafeArea.
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: c),
-            const SizedBox(height: 4),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                color: c,
-                fontWeight: FontWeight.w600,
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: r,
+        boxShadow: [
+          BoxShadow(
+            color: _op(Colors.black, 0.45),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: r,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: r,
+              color: tint,
+              border: Border.all(color: border, width: 1),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  _op(Colors.white, 0.08),
+                  _op(Colors.white, 0.03),
+                ],
               ),
             ),
-          ],
+            child: Stack(
+              children: [
+                // highlight top (effetto vetro)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: const Alignment(0, -1),
+                          end: const Alignment(0, 1),
+                          stops: const [0.0, 0.35, 1.0],
+                          colors: [
+                            highlight,
+                            _op(Colors.white, 0.03),
+                            _op(Colors.white, 0.00),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // content
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: child,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
-/// Elemento centrale “speciale”: cerchio più grande, un po' in evidenza.
-/// Anche qui: mainAxisSize.min e qualche pixel in meno di padding aiutano contro overflow.
-class _CenterNavItem extends StatelessWidget {
+class _GlassNavItem extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool selected;
   final VoidCallback onTap;
+  final Color selectedColor;
 
-  const _CenterNavItem({
+  const _GlassNavItem({
     required this.label,
     required this.icon,
     required this.selected,
     required this.onTap,
+    required this.selectedColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final primary = Theme.of(context).colorScheme.primary;
+    final base = Colors.white;
+    final inactive = _op(base, 0.68);
+    final active = selectedColor;
 
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(999),
-      child: Padding(
-        // Vertical 4 invece di 6: su device con gesture bar grossa aiuta parecchio.
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                color: selected ? primary : const Color(0xFF2A2A2A),
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF4A4A4A)),
-              ),
-              child: Icon(icon, color: selected ? Colors.black : Colors.white),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: selected ? _op(active, 0.10) : Colors.transparent,
+              border: selected
+                  ? Border.all(color: _op(active, 0.22), width: 1)
+                  : Border.all(color: Colors.transparent, width: 1),
             ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 11,
-                color: selected ? primary : Colors.white70,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  scale: selected ? 1.08 : 1.0,
+                  child: Icon(icon, color: selected ? active : inactive, size: 22),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? active : inactive,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _CenterOrbItem extends StatelessWidget {
+  final double size;
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+  final Color accent;
+
+  const _CenterOrbItem({
+    required this.size,
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final inactiveIcon = _op(Colors.white, 0.85);
+    final activeIcon = const Color(0xFF0B0B0B);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Orb
+              Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: _op(Colors.black, 0.50),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                    if (selected)
+                      BoxShadow(
+                        color: _op(accent, 0.35),
+                        blurRadius: 22,
+                        offset: const Offset(0, 10),
+                      ),
+                  ],
+                ),
+                child: ClipOval(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: selected ? _op(accent, 0.35) : _op(Colors.white, 0.16),
+                          width: 1,
+                        ),
+                        gradient: selected
+                            ? RadialGradient(
+                                center: const Alignment(-0.25, -0.35),
+                                stops: const [0.0, 0.65, 1.0],
+                                colors: [
+                                  _op(Colors.white, 0.35),
+                                  _op(accent, 0.95),
+                                  _op(accent, 0.65),
+                                ],
+                              )
+                            : RadialGradient(
+                                center: const Alignment(-0.25, -0.35),
+                                stops: const [0.0, 0.70, 1.0],
+                                colors: [
+                                  _op(Colors.white, 0.20),
+                                  _op(const Color(0xFF141414), 0.70),
+                                  _op(const Color(0xFF0B0B0B), 0.80),
+                                ],
+                              ),
+                      ),
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          size: 26,
+                          color: selected ? activeIcon : inactiveIcon,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                  color: selected ? accent : _op(Colors.white, 0.70),
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Color _op(Color c, double opacity) {
+  final o = opacity.clamp(0.0, 1.0);
+  return c.withAlpha((o * 255).round());
 }
