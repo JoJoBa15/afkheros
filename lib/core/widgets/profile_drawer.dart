@@ -11,18 +11,21 @@ class ProfileDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final gs = context.watch<GameState>();
     return Drawer(
-      backgroundColor: const Color(0xFF171717),
+      // Sfondo del drawer nero assoluto
+      backgroundColor: Colors.black,
       child: Column(
         children: [
           UserAccountsDrawerHeader(
-            decoration: const BoxDecoration(color: Color(0xFF1F1F1F)),
+            // Sfondo dell'header nero assoluto
+            decoration: const BoxDecoration(color: Colors.black),
             currentAccountPicture: const CircleAvatar(
-              backgroundColor: Color(0xFF2A2A2A),
-              child: Icon(Icons.person),
+              backgroundColor: Color(0xFF1A1A1A), // Grigio scurissimo per staccare dal nero
+              child: Icon(Icons.person, color: Colors.white70),
             ),
             accountName: Text(gs.username),
             accountEmail: Text('Lv. ${gs.level}'),
           ),
+          
           _drawerItem(
             context,
             icon: Icons.campaign,
@@ -47,8 +50,10 @@ class ProfileDrawer extends StatelessWidget {
             title: 'Amici',
             onTap: () => _open(context, 'Amici'),
           ),
+          
           const Spacer(),
-          const Divider(height: 1),
+          const Divider(height: 1, color: Color(0xFF1A1A1A)), // Divider scuro
+          
           _drawerItem(
             context,
             icon: Icons.settings,
@@ -68,8 +73,8 @@ class ProfileDrawer extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon),
-      title: Text(title),
+      leading: Icon(icon, color: Colors.white70),
+      title: Text(title, style: const TextStyle(color: Colors.white)),
       onTap: () {
         Navigator.pop(context); // chiude drawer
         onTap();

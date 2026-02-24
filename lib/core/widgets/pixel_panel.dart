@@ -20,9 +20,11 @@ class PixelPanel extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: backgroundColor ?? const Color(0xFF1F1F1F),
+        // Usa il nero assoluto di base
+        color: backgroundColor ?? Colors.black, 
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor ?? const Color(0xFF333333)),
+        // Scurisci anche i bordi per non creare stacchi netti
+        border: Border.all(color: borderColor ?? const Color(0xFF1A1A1A)),
       ),
       child: child,
     );

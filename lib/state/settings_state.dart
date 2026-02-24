@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 /// Come mostriamo il timer durante la sessione di focus.
 enum FocusDisplayMode {
   normal,
+  fullscreen,
   oledSafe,
 }
 

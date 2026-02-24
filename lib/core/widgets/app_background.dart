@@ -286,8 +286,8 @@ class _DayPalette {
     final twilight = math.max(dawnB, duskB);
     final duskMix = duskB / (dawnB + duskB + 1e-6);
 
-    const nightTop = Color(0xFF05081A);
-    const nightBottom = Color(0xFF0D1230);
+    const nightTop = Color.fromARGB(255, 0, 0, 0);
+    const nightBottom = Color.fromARGB(255, 0, 0, 0);
 
     const dayTop = Color(0xFF071C3E);
     const dayBottom = Color(0xFF24B7FF);

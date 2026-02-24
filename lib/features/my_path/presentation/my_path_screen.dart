@@ -2,10 +2,9 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 
+import 'package:afkheroes/state/settings_state.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../../state/settings_state.dart';
 import 'focus_session_screen.dart';
 
 class MyPathScreen extends StatefulWidget {
@@ -244,17 +243,16 @@ class _DurationPicker extends StatelessWidget {
   const _DurationPicker();
 
   void _startSession(BuildContext context, Duration duration) {
-    final settings = context.read<SettingsState>();
     Navigator.of(context).pop();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FocusSessionScreen(
           duration: duration,
-          displayMode: settings.focusDisplayMode,
+          displayMode: FocusDisplayMode.fullscreen,
         ),
       ),
     );
-  }
+  } // <-- Corretto: rimossi il punto e virgola e la parentesi in eccesso che chiudevano la classe
 
   @override
   Widget build(BuildContext context) {
@@ -357,7 +355,6 @@ class _DurationPicker extends StatelessWidget {
     );
   }
 }
-
 // -----------------------------------------------------------------------------
 // AURORA BLOBS
 // -----------------------------------------------------------------------------

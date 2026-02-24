@@ -361,14 +361,8 @@ class _MyPathMenuCard extends StatelessWidget {
                     icon: Icons.shield_moon_outlined,
                     title: 'Modalità OLED-safe',
                     subtitle: 'Riduce burn-in e luminosità fissa',
-                    trailing: Switch(
-                      value: settings.isOledSafe,
-                      onChanged: (v) {
-                        settings.setFocusDisplayMode(
-                          v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
-                        );
-                      },
-                    ),
+                    
+                    
                     onTap: () {
                       settings.setFocusDisplayMode(
                         settings.isOledSafe ? FocusDisplayMode.normal : FocusDisplayMode.oledSafe,
