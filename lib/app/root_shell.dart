@@ -99,9 +99,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                 // Questo libera GPU/CPU e rende la transizione “olio” anche su Android.
                 child: TickerMode(
                   enabled: !_paging,
-                  child: AppBackground(
-                    dimming: bgDimming,
-                  ),
+                  child: AppBackground(dimming: bgDimming),
                 ),
               ),
 
@@ -141,52 +139,52 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                     itemCount: 5,
                     onPageChanged: (i) => setState(() => _index = i),
                     itemBuilder: (context, i) {
-                    final delta = (page - i).abs().clamp(0.0, 1.0);
-                    // ✅ Effetto “depth” più sottile: meno bordi visibili sui lati
-                    // e meno rischio di artefatti durante lo snap.
-                    final scaleY = 1.0 - (0.018 * delta);
-                    final lift = 6.0 * delta;
+                      final delta = (page - i).abs().clamp(0.0, 1.0);
+                      // ✅ Effetto “depth” più sottile: meno bordi visibili sui lati
+                      // e meno rischio di artefatti durante lo snap.
+                      final scaleY = 1.0 - (0.018 * delta);
+                      final lift = 6.0 * delta;
 
-                    final Widget raw = switch (i) {
-                      0 => const ShopScreen(),
-                      1 => const BlacksmithScreen(),
-                      2 => const MyPathScreen(),
-                      3 => const EquipScreen(),
-                      4 => const ClanScreen(),
-                      _ => const SizedBox.shrink(),
-                    };
+                      final Widget raw = switch (i) {
+                        0 => const ShopScreen(),
+                        1 => const BlacksmithScreen(),
+                        2 => const MyPathScreen(),
+                        3 => const EquipScreen(),
+                        4 => const ClanScreen(),
+                        _ => const SizedBox.shrink(),
+                      };
 
-                    final Widget pageChild = (i == 2)
-                        ? raw
-                        : _ShellContent(
-                            glassT: glassT,
-                            child: raw,
-                          );
+                      final Widget pageChild = (i == 2)
+                          ? raw
+                          : _ShellContent(glassT: glassT, child: raw);
 
-                    return _KeepAlive(
-                      child: Transform(
-                        alignment: Alignment.center,
-                        transform: Matrix4.identity()
-                          ..translate(0.0, lift)
-                          ..scale(1.0, scaleY, 1.0),
-                        child: pageChild,
-                      ),
-                    );
+                      return _KeepAlive(
+                        child: Transform(
+                          alignment: Alignment.center,
+                          transform: Matrix4.identity()
+                            ..translateByDouble(0.0, lift, 0.0, 1.0)
+                            ..scaleByDouble(1.0, scaleY, 1.0, 1.0),
+                          child: pageChild,
+                        ),
+                      );
                     },
                   ),
                 ),
               ),
+
+              // ✅ IMPORTANTISSIMO: la BottomNav viene disegnata DENTRO la stessa Stack del body.
+              // Se la lasciamo in Scaffold.bottomNavigationBar, il body (e quindi lo scrim/dimming)
+              // non copre davvero l’area sotto la nav -> si vede una “differenza” in basso.
+              // Così invece background + scrim + nav sono un unico layer continuo.
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: PixelBottomNavBar(
+                  currentIndex: _index,
+                  page: page,
+                  onChanged: _goToTab,
+                ),
+              ),
             ],
-          );
-        },
-      ),
-      bottomNavigationBar: AnimatedBuilder(
-        animation: _pageController,
-        builder: (context, _) {
-          return PixelBottomNavBar(
-            currentIndex: _index,
-            page: _currentPage(),
-            onChanged: _goToTab,
           );
         },
       ),
