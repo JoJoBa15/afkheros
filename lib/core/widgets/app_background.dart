@@ -8,7 +8,12 @@ import 'package:flutter/material.dart';
 /// - Non dipende da MyPathBackground
 /// - Riutilizzabile sotto TUTTE le schermate
 class AppBackground extends StatefulWidget {
-  const AppBackground({super.key});
+  /// Quanto scurire il background (0..1).
+  ///
+  /// Utile per riusare lo stesso sky/aurora ovunque ma con “mood” diverso.
+  final double dimming;
+
+  const AppBackground({super.key, this.dimming = 0.0});
 
   @override
   State<AppBackground> createState() => _AppBackgroundState();
@@ -111,6 +116,29 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
                   ),
                 ),
               ),
+
+              // Dimmer globale (per schermate non-MyPath)
+              if (widget.dimming > 0)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.black.withOpacity(
+                              (widget.dimming * 0.70).clamp(0.0, 1.0),
+                            ),
+                            Colors.black.withOpacity(
+                              widget.dimming.clamp(0.0, 1.0),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           ),
         );
