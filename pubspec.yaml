@@ -1,6 +1,6 @@
 name: afkheroes
 description: "Concentrati! AFK Heroes è un gioco idle RPG che ti permette di goderti l'avventura senza stress concentrandoti su te stesso!"
-version: 1.0.0+1
+version: 0.0.1+1
 
 environment:
   sdk: ^3.11.0
@@ -22,10 +22,6 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/logo.png
-    - assets/images/bg/mine_sunrise.png
-    - assets/images/bg/mine_day.png
-    - assets/images/bg/mine_sunset.png
-    - assets/images/bg/mine_night.png
 
 flutter_native_splash:
   # Splash per TUTTE le piattaforme (tranne Android 12+, che va sotto android_12)
