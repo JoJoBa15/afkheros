@@ -31,7 +31,7 @@ class _CurrencyInline extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: Colors.white.withOpacity(0.90)),
+        Icon(icon, size: 16, color: Colors.white.withValues(alpha: 0.90)),
         const SizedBox(width: 6),
         Text(
           '$value',
@@ -40,7 +40,7 @@ class _CurrencyInline extends StatelessWidget {
             fontWeight: FontWeight.w900,
             letterSpacing: 0.2,
             height: 1.0,
-            color: Colors.white.withOpacity(0.92),
+            color: Colors.white.withValues(alpha: 0.92),
           ),
         ),
       ],

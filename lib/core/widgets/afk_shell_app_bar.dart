@@ -156,7 +156,7 @@ class _Leading extends StatelessWidget {
           child: Icon(
             icon,
             size: 22,
-            color: Colors.white.withOpacity(0.92),
+            color: Colors.white.withValues(alpha: 0.92),
           ),
         ),
       );
@@ -187,19 +187,19 @@ class _AppleUnifiedGlassBar extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withOpacity(0.12),
-                Colors.white.withOpacity(0.06),
+                Colors.white.withValues(alpha: 0.12),
+                Colors.white.withValues(alpha: 0.06),
               ],
             ),
-            border: Border.all(color: Colors.white.withOpacity(0.14)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.20),
+                color: Colors.black.withValues(alpha: 0.20),
                 blurRadius: 22,
                 offset: const Offset(0, 12),
               ),
               BoxShadow(
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 blurRadius: 18,
                 offset: const Offset(0, -10),
               ),
@@ -250,7 +250,7 @@ class _CenterTitleOrHairline extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.92),
+                      color: Colors.white.withValues(alpha: 0.92),
                       fontSize: 17,
                       fontWeight: FontWeight.w900,
                       letterSpacing: 0.2,
@@ -301,7 +301,7 @@ class _CenterSafeHairline extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Colors.transparent,
-              Colors.white.withOpacity(0.22),
+              Colors.white.withValues(alpha: 0.22),
               Colors.transparent,
             ],
             stops: const [0.0, 0.5, 1.0],

@@ -254,14 +254,14 @@ class _StopChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.stop_rounded, size: 18, color: Colors.white.withOpacity(0.92)),
+            Icon(Icons.stop_rounded, size: 18, color: Colors.white.withValues(alpha: 0.92)),
             const SizedBox(width: 6),
             Text(
               'Interrompi',
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w900,
-                color: Colors.white.withOpacity(0.92),
+                color: Colors.white.withValues(alpha: 0.92),
                 letterSpacing: 0.2,
               ),
             ),

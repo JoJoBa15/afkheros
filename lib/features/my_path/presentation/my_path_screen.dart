@@ -97,14 +97,14 @@ class _FocusCTAState extends State<_FocusCTA> {
               colors: widget.palette.cta,
             ),
             border: Border.all(
-              color: Colors.white.withOpacity(0.22),
+              color: Colors.white.withValues(alpha: 0.22),
               width: 1.2,
             ),
             boxShadow: [
               BoxShadow(
                 blurRadius: 34,
                 spreadRadius: 2,
-                color: widget.palette.glow.withOpacity(0.28),
+                color: widget.palette.glow.withValues(alpha: 0.28),
                 offset: const Offset(0, 16),
               ),
             ],
@@ -114,11 +114,11 @@ class _FocusCTAState extends State<_FocusCTA> {
               filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
               child: Container(
                 alignment: Alignment.center,
-                color: Colors.white.withOpacity(0.06),
+                color: Colors.white.withValues(alpha: 0.06),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.bolt_rounded, size: 44, color: Colors.white.withOpacity(0.96)),
+                    Icon(Icons.bolt_rounded, size: 44, color: Colors.white.withValues(alpha: 0.96)),
                     const SizedBox(height: 10),
                     const Text(
                       'Concentrati!',
@@ -133,7 +133,7 @@ class _FocusCTAState extends State<_FocusCTA> {
                     Text(
                       'Avvia una sessione',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.84),
+                        color: Colors.white.withValues(alpha: 0.84),
                         fontSize: 14.5,
                         fontWeight: FontWeight.w700,
                       ),
@@ -244,11 +244,11 @@ class _DurationPicker extends StatelessWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                const Color(0xFF1B2530).withOpacity(0.78),
-                const Color(0xFF0F1217).withOpacity(0.82),
+                const Color(0xFF1B2530).withValues(alpha: 0.78),
+                const Color(0xFF0F1217).withValues(alpha: 0.82),
               ],
             ),
-            border: Border.all(color: Colors.white.withOpacity(0.10)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -280,14 +280,14 @@ class _DurationPicker extends StatelessWidget {
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            Colors.white.withOpacity(0.12),
-                            Colors.white.withOpacity(0.06),
+                            Colors.white.withValues(alpha: 0.12),
+                            Colors.white.withValues(alpha: 0.06),
                           ],
                         ),
-                        border: Border.all(color: Colors.white.withOpacity(0.10)),
+                        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.22),
+                            color: Colors.black.withValues(alpha: 0.22),
                             blurRadius: 18,
                             offset: const Offset(0, 10),
                           ),
@@ -312,7 +312,7 @@ class _DurationPicker extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(
                   'Annulla',
-                  style: TextStyle(color: Colors.white.withOpacity(0.75)),
+                  style: TextStyle(color: Colors.white.withValues(alpha: 0.75)),
                 ),
               ),
             ],

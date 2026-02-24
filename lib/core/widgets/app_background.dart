@@ -90,7 +90,7 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
                         radius: 1.05,
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.32),
+                          Colors.black.withValues(alpha: 0.32),
                         ],
                         stops: const [0.62, 1.0],
                       ),
@@ -108,7 +108,7 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
                         begin: Alignment.topCenter,
                         end: Alignment.center,
                         colors: [
-                          Colors.black.withOpacity(0.20),
+                          Colors.black.withValues(alpha: 0.20),
                           Colors.transparent,
                         ],
                       ),
@@ -127,10 +127,10 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
                           begin: Alignment.topCenter,
                           end: Alignment.bottomCenter,
                           colors: [
-                            Colors.black.withOpacity(
+                            Colors.black.withValues(alpha: 
                               (widget.dimming * 0.70).clamp(0.0, 1.0),
                             ),
-                            Colors.black.withOpacity(
+                            Colors.black.withValues(alpha: 
                               widget.dimming.clamp(0.0, 1.0),
                             ),
                           ],
@@ -268,7 +268,7 @@ class _StarsPainter extends CustomPainter {
       final flicker = 0.75 + 0.25 * math.sin(s.phase + tw * 1.2);
       final a = (base * flicker).clamp(0.0, 0.70);
 
-      final paint = Paint()..color = Colors.white.withOpacity(a);
+      final paint = Paint()..color = Colors.white.withValues(alpha: a);
       canvas.drawCircle(Offset(px, py), s.r, paint);
     }
   }
@@ -346,18 +346,18 @@ class _DayPalette {
     Color blend(Color a, Color b, double t) => Color.lerp(a, b, t)!;
 
     final blobA = [
-      blend(coolA, warmA, twilight).withOpacity(0.95),
-      blend(coolA, warmA, twilight).withOpacity(0.00),
+      blend(coolA, warmA, twilight).withValues(alpha: 0.95),
+      blend(coolA, warmA, twilight).withValues(alpha: 0.00),
       Colors.transparent,
     ];
     final blobB = [
-      blend(coolB, warmB, twilight).withOpacity(0.90),
-      blend(coolB, warmB, twilight).withOpacity(0.00),
+      blend(coolB, warmB, twilight).withValues(alpha: 0.90),
+      blend(coolB, warmB, twilight).withValues(alpha: 0.00),
       Colors.transparent,
     ];
     final blobC = [
-      blend(coolC, warmC, twilight).withOpacity(0.85),
-      blend(coolC, warmC, twilight).withOpacity(0.00),
+      blend(coolC, warmC, twilight).withValues(alpha: 0.85),
+      blend(coolC, warmC, twilight).withValues(alpha: 0.00),
       Colors.transparent,
     ];
 

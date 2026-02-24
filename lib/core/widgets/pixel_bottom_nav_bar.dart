@@ -98,9 +98,9 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                       highlight: highlight,
                       glowDx: dx,
                       glowColors: [
-                        primary.withOpacity(0.22),
-                        tertiary.withOpacity(0.16),
-                        secondary.withOpacity(0.12),
+                        primary.withValues(alpha: 0.22),
+                        tertiary.withValues(alpha: 0.16),
+                        secondary.withValues(alpha: 0.12),
                       ],
                       child: Row(
                         children: [
@@ -215,12 +215,13 @@ class _GlassShell extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          // ✅ Performance: blur un filo più leggero (Android ringrazia).
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
             decoration: BoxDecoration(
               // ✅ niente nero pieno
-              color: Colors.white.withOpacity(0.08),
-              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              color: Colors.white.withValues(alpha: 0.08),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
             ),
             child: Stack(
               children: [
@@ -230,7 +231,8 @@ class _GlassShell extends StatelessWidget {
                     child: Transform.translate(
                       offset: Offset(glowDx * 50, 0),
                       child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+                        // ✅ Performance: blur glow più leggero.
+                        imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                         child: DecoratedBox(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -315,9 +317,9 @@ class _GlassNavItem extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              color: active.withOpacity(0.10 * t),
+              color: active.withValues(alpha: 0.10 * t),
               border: Border.all(
-                color: active.withOpacity(0.22 * t),
+                color: active.withValues(alpha: 0.22 * t),
                 width: 1,
               ),
             ),
@@ -409,7 +411,7 @@ class _CenterOrbItem extends StatelessWidget {
                       offset: const Offset(0, 10),
                     ),
                     BoxShadow(
-                      color: accent.withOpacity(0.30 * t),
+                      color: accent.withValues(alpha: 0.30 * t),
                       blurRadius: 22,
                       offset: const Offset(0, 10),
                     ),
@@ -434,9 +436,9 @@ class _CenterOrbItem extends StatelessWidget {
                                     center: const Alignment(-0.25, -0.35),
                                     stops: const [0.0, 0.70, 1.0],
                                     colors: [
-                                      Colors.white.withOpacity(0.22),
-                                      glowA.withOpacity(0.55),
-                                      glowB.withOpacity(0.30),
+                                      Colors.white.withValues(alpha: 0.22),
+                                      glowA.withValues(alpha: 0.55),
+                                      glowB.withValues(alpha: 0.30),
                                     ],
                                   ),
                                 ),

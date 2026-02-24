@@ -9,6 +9,8 @@ class AfkHeroApp extends StatelessWidget {
     return MaterialApp(
       title: 'AFK Hero (Focus)',
       debugShowCheckedModeBanner: false,
+      // ✅ Niente glow / stretch ai bordi durante gli scroll (evita “flash” colorati)
+      scrollBehavior: const _NoOverscrollIndicatorBehavior(),
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
@@ -23,5 +25,20 @@ class AfkHeroApp extends StatelessWidget {
       ),
       home: const RootShell(),
     );
+  }
+}
+
+/// Rimuove gli indicatori di overscroll (glow / stretch) che in alcune animazioni
+/// possono “sparaflashare” sui bordi dello schermo.
+class _NoOverscrollIndicatorBehavior extends MaterialScrollBehavior {
+  const _NoOverscrollIndicatorBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child;
   }
 }

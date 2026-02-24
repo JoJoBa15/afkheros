@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -24,6 +22,7 @@ class RootShell extends StatefulWidget {
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 2;
   late final PageController _pageController;
+  bool _paging = false;
 
   static const double _contentBottomPad =
       PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
@@ -96,22 +95,57 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           return Stack(
             children: [
               Positioned.fill(
-                child: AppBackground(
-                  dimming: bgDimming,
+                // ✅ Durante lo swipe/snap tra tab blocchiamo il ticker del background.
+                // Questo libera GPU/CPU e rende la transizione “olio” anche su Android.
+                child: TickerMode(
+                  enabled: !_paging,
+                  child: AppBackground(
+                    dimming: bgDimming,
+                  ),
+                ),
+              ),
+
+              // Bottom scrim: evita che la parte bassa resti troppo “chiara”
+              // nelle tab non-MyPath, e maschera eventuali micro-seams durante lo snap.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.bottomCenter,
+                        end: Alignment.center,
+                        colors: [
+                          Colors.black.withValues(alpha: 0.22 * distMyPath01),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
 
               Positioned.fill(
-                child: PageView.builder(
-                  controller: _pageController,
-                  physics: const BouncingScrollPhysics(parent: PageScrollPhysics()),
-                  itemCount: 5,
-                  onPageChanged: (i) => setState(() => _index = i),
-                  itemBuilder: (context, i) {
+                child: NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    if (n is ScrollStartNotification) {
+                      if (!_paging) setState(() => _paging = true);
+                    } else if (n is ScrollEndNotification) {
+                      if (_paging) setState(() => _paging = false);
+                    }
+                    return false;
+                  },
+                  child: PageView.builder(
+                    controller: _pageController,
+                    // ✅ Evita “overshoot”/glow sui bordi durante lo snap tra pagine.
+                    physics: const PageScrollPhysics(),
+                    itemCount: 5,
+                    onPageChanged: (i) => setState(() => _index = i),
+                    itemBuilder: (context, i) {
                     final delta = (page - i).abs().clamp(0.0, 1.0);
-                    final scale = 1.0 - (0.030 * delta);
-                    final opacity = 1.0 - (0.12 * delta);
-                    final lift = 10.0 * delta;
+                    // ✅ Effetto “depth” più sottile: meno bordi visibili sui lati
+                    // e meno rischio di artefatti durante lo snap.
+                    final scaleY = 1.0 - (0.018 * delta);
+                    final lift = 6.0 * delta;
 
                     final Widget raw = switch (i) {
                       0 => const ShopScreen(),
@@ -130,18 +164,16 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                           );
 
                     return _KeepAlive(
-                      child: Opacity(
-                        opacity: opacity,
-                        child: Transform.translate(
-                          offset: Offset(0, lift),
-                          child: Transform.scale(
-                            scale: scale,
-                            child: pageChild,
-                          ),
-                        ),
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..translate(0.0, lift)
+                          ..scale(1.0, scaleY, 1.0),
+                        child: pageChild,
                       ),
                     );
-                  },
+                    },
+                  ),
                 ),
               ),
             ],
@@ -192,29 +224,29 @@ class _ContentGlass extends StatelessWidget {
   Widget build(BuildContext context) {
     if (t <= 0.001) return child;
 
-    return ClipRect(
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-              child: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black.withOpacity(0.04 * t),
-                      Colors.black.withOpacity(0.10 * t),
-                    ],
-                  ),
+    // ✅ Performance: niente BackdropFilter full-screen.
+    // Manteniamo la stessa “leggibilità” con un semplice scrim/gradient overlay
+    // (molto più leggero e senza artefatti sui bordi).
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: IgnorePointer(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.06 * t),
+                    Colors.black.withValues(alpha: 0.14 * t),
+                  ],
                 ),
               ),
             ),
           ),
-          child,
-        ],
-      ),
+        ),
+        child,
+      ],
     );
   }
 }

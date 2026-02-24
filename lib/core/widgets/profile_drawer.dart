@@ -23,13 +23,13 @@ class ProfileDrawer extends StatelessWidget {
                 topRight: Radius.circular(26),
                 bottomRight: Radius.circular(26),
               ),
-              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  const Color(0xFF2B3A46).withOpacity(0.62),
-                  const Color(0xFF12161C).withOpacity(0.72),
+                  const Color(0xFF2B3A46).withValues(alpha: 0.62),
+                  const Color(0xFF12161C).withValues(alpha: 0.72),
                 ],
               ),
             ),
@@ -44,8 +44,8 @@ class ProfileDrawer extends StatelessWidget {
                         height: 46,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.10),
-                          border: Border.all(color: Colors.white.withOpacity(0.14)),
+                          color: Colors.white.withValues(alpha: 0.10),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.14)),
                         ),
                         child: const Icon(Icons.person_outline, color: Colors.white),
                       ),
@@ -125,8 +125,8 @@ class ProfileDrawer extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(18),
-            color: Colors.white.withOpacity(0.08),
-            border: Border.all(color: Colors.white.withOpacity(0.12)),
+            color: Colors.white.withValues(alpha: 0.08),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
           ),
           child: Row(
             children: [
@@ -135,7 +135,7 @@ class ProfileDrawer extends StatelessWidget {
                 height: 40,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(14),
-                  color: Colors.white.withOpacity(0.10),
+                  color: Colors.white.withValues(alpha: 0.10),
                 ),
                 child: Icon(icon, color: Colors.white, size: 20),
               ),
@@ -156,7 +156,7 @@ class ProfileDrawer extends StatelessWidget {
                     Text(
                       subtitle,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.62),
+                        color: Colors.white.withValues(alpha: 0.62),
                         fontSize: 12.5,
                         height: 1.2,
                       ),
@@ -165,7 +165,7 @@ class ProfileDrawer extends StatelessWidget {
                 ),
               ),
               Icon(Icons.chevron_right_rounded,
-                  color: Colors.white.withOpacity(0.55)),
+                  color: Colors.white.withValues(alpha: 0.55)),
             ],
           ),
         ),

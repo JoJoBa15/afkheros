@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 class GameState extends ChangeNotifier {
-  String username = 'Nome';
+  String username = 'Hero';
   int level = 1;
 
-  int gold = 1000;
-  int gems = 500;
-  int iron = 100;
+  int gold = 120;
+  int gems = 5;
+  int iron = 0;
 
   final List<GameItem> inventory = [];
   GameItem? equipped;
