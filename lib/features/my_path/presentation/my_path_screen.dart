@@ -224,9 +224,9 @@ class _DurationPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const durations = [
-      Duration(minutes: 15),
-      Duration(minutes: 25),
-      Duration(minutes: 45),
+      Duration(minutes: 1),
+      Duration(minutes: 20),
+      Duration(minutes: 4),
       Duration(minutes: 60),
     ];
 
