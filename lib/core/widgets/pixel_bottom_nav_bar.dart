@@ -33,8 +33,10 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(seconds: 10))
-      ..repeat(reverse: true);
+    _anim = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 10),
+    )..repeat(reverse: true);
   }
 
   @override
@@ -106,7 +108,9 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                               selectedColor: primary,
                             ),
                           ),
-                          const SizedBox(width: PixelBottomNavBar.centerSize + 16),
+                          const SizedBox(
+                            width: PixelBottomNavBar.centerSize + 16,
+                          ),
                           Expanded(
                             child: _GlassNavItem(
                               label: 'Equip',
@@ -133,7 +137,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                   Align(
                     alignment: Alignment.bottomCenter,
                     child: Transform.translate(
-                      offset: const Offset(0, -0.5) ,
+                      offset: const Offset(0, -0.5),
                       child: _CenterOrbItem(
                         size: PixelBottomNavBar.centerSize,
                         label: 'My Path',
@@ -195,22 +199,14 @@ class _GlassShell extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: r,
+        borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
+          child: Container(
             decoration: BoxDecoration(
-              borderRadius: r,
-              color: tint,
-              border: Border.all(color: border, width: 1),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  _op(Colors.white, 0.06),
-                  _op(Colors.white, 0.02),
-                ],
-              ),
+              // ✅ niente nero pieno
+              color: Colors.white.withOpacity(0.08),
+              border: Border.all(color: Colors.white.withOpacity(0.14)),
             ),
             child: Stack(
               children: [
@@ -312,7 +308,11 @@ class _GlassNavItem extends StatelessWidget {
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutCubic,
                   scale: selected ? 1.08 : 1.0,
-                  child: Icon(icon, color: selected ? active : inactive, size: 22),
+                  child: Icon(
+                    icon,
+                    color: selected ? active : inactive,
+                    size: 22,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -402,7 +402,10 @@ class _CenterOrbItem extends StatelessWidget {
                           child: Transform.translate(
                             offset: Offset(glowDx * 18, 0),
                             child: ImageFiltered(
-                              imageFilter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+                              imageFilter: ImageFilter.blur(
+                                sigmaX: 18,
+                                sigmaY: 18,
+                              ),
                               child: DecoratedBox(
                                 decoration: BoxDecoration(
                                   gradient: RadialGradient(
@@ -424,14 +427,20 @@ class _CenterOrbItem extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: selected ? _op(accent, 0.35) : _op(Colors.white, 0.16),
+                                color: selected
+                                    ? _op(accent, 0.35)
+                                    : _op(Colors.white, 0.16),
                                 width: 1,
                               ),
                             ),
                           ),
                         ),
                         Center(
-                          child: Icon(icon, size: 26, color: selected ? activeIcon : inactiveIcon),
+                          child: Icon(
+                            icon,
+                            size: 26,
+                            color: selected ? activeIcon : inactiveIcon,
+                          ),
                         ),
                       ],
                     ),

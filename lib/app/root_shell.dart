@@ -1,13 +1,12 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../core/widgets/app_background.dart';
 import '../core/widgets/pixel_bottom_nav_bar.dart';
 import '../core/widgets/profile_drawer.dart';
 import '../core/widgets/currency_chip.dart';
+import '../core/widgets/game_status_strip.dart';
 
 import '../features/shop/presentation/shop_screen.dart';
 import '../features/blacksmith/presentation/blacksmith_screen.dart';
@@ -24,7 +23,7 @@ class RootShell extends StatefulWidget {
   State<RootShell> createState() => _RootShellState();
 }
 
-class _RootShellState extends State<RootShell> {
+class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 2; // My Path default
 
   final _tabs = const [
@@ -35,60 +34,65 @@ class _RootShellState extends State<RootShell> {
     ClanScreen(),
   ];
 
-  static const double _navSafePadding = 112; // spazio per non finire sotto la navbar glass
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _applyImmersiveSticky();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // ✅ su alcuni device, tornando in app riappaiono le barre: le rimettiamo sticky
+    if (state == AppLifecycleState.resumed) {
+      _applyImmersiveSticky();
+    }
+  }
+
+  Future<void> _applyImmersiveSticky() async {
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
 
   @override
   Widget build(BuildContext context) {
     final isMyPath = _index == 2;
-    final topPad = MediaQuery.of(context).padding.top + (isMyPath ? 0 : kToolbarHeight);
-    final bottomPad = _navSafePadding + MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
       drawer: const ProfileDrawer(),
 
-      // ✅ Serve per avere background anche dietro AppBar e dietro navbar
-      extendBody: true,
-      extendBodyBehindAppBar: true,
+      // ✅ sfondo sotto AppBar (già lo avevi)
+      extendBodyBehindAppBar: isMyPath,
+
+      // ✅ IMPORTANTISSIMO: permette al body di “scendere” dietro la bottom nav
+      extendBody: isMyPath,
+
+      // ✅ evita che lo Scaffold “riempia” con nero sotto
+      backgroundColor: isMyPath ? Colors.transparent : null,
 
       appBar: isMyPath ? _buildMyPathAppBar() : _buildDefaultAppBar(),
 
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ✅ Background globale riusando quello già fatto
-          const Positioned.fill(child: AppBackground()),
-
-          // ✅ Tutte le altre tab più “dark” sopra, così riusi lo stesso gradiente/scene
-          if (!isMyPath)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: Container(color: Colors.black.withOpacity(0.55)),
-              ),
-            ),
-
-          // Contenuto tab (con padding solo quando NON è MyPath)
-          Padding(
-            padding: EdgeInsets.fromLTRB(0, topPad, 0, isMyPath ? 0 : bottomPad),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 350),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                final fade = FadeTransition(opacity: animation, child: child);
-                final offsetTween = Tween(
-                  begin: const Offset(0.02, 0),
-                  end: Offset.zero,
-                ).animate(animation);
-                return SlideTransition(position: offsetTween, child: fade);
-              },
-              child: KeyedSubtree(
-                key: ValueKey(_index),
-                child: _tabs[_index],
-              ),
-            ),
-          ),
-        ],
+      body: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 350),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) {
+          final fade = FadeTransition(opacity: animation, child: child);
+          final offsetTween = Tween(
+            begin: const Offset(0.02, 0),
+            end: Offset.zero,
+          ).animate(animation);
+          return SlideTransition(position: offsetTween, child: fade);
+        },
+        child: KeyedSubtree(
+          key: ValueKey(_index),
+          child: IndexedStack(index: _index, children: _tabs),
+        ),
       ),
 
       bottomNavigationBar: PixelBottomNavBar(
@@ -100,46 +104,17 @@ class _RootShellState extends State<RootShell> {
 
   PreferredSizeWidget _buildDefaultAppBar() {
     return AppBar(
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
+      backgroundColor: const Color(0xFF1C1C1C),
       elevation: 0,
-      scrolledUnderElevation: 0,
-      systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.transparent,
-      ),
       centerTitle: false,
       titleSpacing: 0,
-
-      // ✅ Glass AppBar (così si vede il background dietro e non “blocco grigio”)
-      flexibleSpace: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.18),
-              border: Border(
-                bottom: BorderSide(color: Colors.white.withOpacity(0.08)),
-              ),
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.06),
-                  Colors.white.withOpacity(0.02),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-
       leading: Builder(
         builder: (context) => IconButton(
           tooltip: 'Profilo',
-          icon: CircleAvatar(
+          icon: const CircleAvatar(
             radius: 16,
-            backgroundColor: Colors.white.withOpacity(0.10),
-            child: const Icon(Icons.person, size: 18, color: Colors.white),
+            backgroundColor: Color(0xFF2A2A2A),
+            child: Icon(Icons.person, size: 18),
           ),
           onPressed: () => Scaffold.of(context).openDrawer(),
         ),
@@ -153,17 +128,27 @@ class _RootShellState extends State<RootShell> {
 
   PreferredSizeWidget _buildMyPathAppBar() {
     return AppBar(
+      // ✅ AppBar “glass” trasparente
       backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       shadowColor: Colors.transparent,
       elevation: 0,
       scrolledUnderElevation: 0,
+
+      // ✅ NON vogliamo padding automatico (lo gestiamo noi con SafeArea nella strip)
+      primary: false,
+
       systemOverlayStyle: SystemUiOverlayStyle.light.copyWith(
         statusBarColor: Colors.transparent,
+        systemNavigationBarColor: Colors.transparent,
       ),
+
       automaticallyImplyLeading: false,
       titleSpacing: 0,
-      toolbarHeight: 72,
+
+      // Altezza maggiore: strip (ora+batteria) + riga profilo/valute
+      toolbarHeight: 106,
+
       title: const _MyPathAppBarContent(),
     );
   }
@@ -177,7 +162,7 @@ class _MyPathAppBarContent extends StatelessWidget {
       context: context,
       barrierDismissible: true,
       barrierLabel: 'Menu',
-      barrierColor: Colors.transparent,
+      barrierColor: Colors.transparent, // lo gestiamo noi nel blur overlay
       transitionDuration: const Duration(milliseconds: 220),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -193,35 +178,44 @@ class _MyPathAppBarContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: () => _openMyPathMenu(context),
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.25),
-                  width: 1,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // ✅ Ora + Batteria (notch/punch-hole safe)
+        const GameStatusStrip(),
+
+        // Riga principale header (profilo + valute)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              InkWell(
+                onTap: () => _openMyPathMenu(context),
+                borderRadius: BorderRadius.circular(999),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.25),
+                      width: 1,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.person_outline,
+                    size: 32,
+                    color: Colors.white,
+                  ),
                 ),
               ),
-              child: const Icon(
-                Icons.person_outline,
-                size: 32,
-                color: Colors.white,
-              ),
-            ),
+              const Spacer(),
+              const CurrenciesBar(),
+            ],
           ),
-          const Spacer(),
-          const CurrenciesBar(),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -238,13 +232,18 @@ class _MyPathMenuOverlay extends StatelessWidget {
         animation: progress,
         builder: (context, _) {
           final v = progress.value;
+
+          // Blur e dim più morbidi (meno “nero”)
           final sigma = 14.0 * v;
           final dim = 0.30 * v;
+
+          // Card animata separatamente
           final scale = 0.965 + (1.0 - 0.965) * v;
 
           return SizedBox.expand(
             child: Stack(
               children: [
+                // ✅ FIX bande laterali: ClipRect + BackdropFilter full-screen
                 Positioned.fill(
                   child: ClipRect(
                     child: GestureDetector(
@@ -308,6 +307,7 @@ class _MyPathMenuCard extends StatelessWidget {
                     offset: const Offset(0, 18),
                   ),
                 ],
+                // glass scuro “blu-grigio”
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -355,14 +355,65 @@ class _MyPathMenuCard extends StatelessWidget {
                   _DividerSoftModern(),
                   const SizedBox(height: 14),
 
+                  const _SectionTitle('Profilo'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Gestione profilo',
+                    subtitle: 'Account, avatar, progressi',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: schermata profilo')),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+                  const _SectionTitle('App'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.tune_rounded,
+                    title: 'Impostazioni app',
+                    subtitle: 'Audio, notifiche, privacy',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: impostazioni app')),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+                  const _SectionTitle('Focus'),
+                  const SizedBox(height: 8),
+                  _ModernTile(
+                    icon: Icons.timer_outlined,
+                    title: 'Strumenti Focus',
+                    subtitle: 'Preset, suoni, blocco distrazioni',
+                    onTap: () {
+                      onClose();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: strumenti focus')),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
                   const _SectionTitle('Accessibilità'),
                   const SizedBox(height: 8),
                   _ModernTile(
                     icon: Icons.shield_moon_outlined,
                     title: 'Modalità OLED-safe',
                     subtitle: 'Riduce burn-in e luminosità fissa',
-                    
-                    
+                    trailing: Switch(
+                      value: settings.isOledSafe,
+                      onChanged: (v) {
+                        settings.setFocusDisplayMode(
+                          v ? FocusDisplayMode.oledSafe : FocusDisplayMode.normal,
+                        );
+                      },
+                    ),
                     onTap: () {
                       settings.setFocusDisplayMode(
                         settings.isOledSafe ? FocusDisplayMode.normal : FocusDisplayMode.oledSafe,
@@ -379,6 +430,7 @@ class _MyPathMenuCard extends StatelessWidget {
   }
 }
 
+/// Card “pill” moderne
 class _ModernTile extends StatelessWidget {
   final IconData icon;
   final String title;
