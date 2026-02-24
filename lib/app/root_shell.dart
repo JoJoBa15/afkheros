@@ -95,16 +95,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
           return Stack(
             children: [
               Positioned.fill(
-                // ✅ Durante lo swipe/snap tra tab blocchiamo il ticker del background.
-                // Questo libera GPU/CPU e rende la transizione “olio” anche su Android.
                 child: TickerMode(
                   enabled: !_paging,
                   child: AppBackground(dimming: bgDimming),
                 ),
               ),
 
-              // Bottom scrim: evita che la parte bassa resti troppo “chiara”
-              // nelle tab non-MyPath, e maschera eventuali micro-seams durante lo snap.
+              // ✅ Bottom scrim SEMPRE presente, poi aumenta fuori MyPath:
+              // uniforma la base e riduce la lettura dei cambi background dietro la nav.
               Positioned.fill(
                 child: IgnorePointer(
                   child: DecoratedBox(
@@ -113,7 +111,9 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                         begin: Alignment.bottomCenter,
                         end: Alignment.center,
                         colors: [
-                          Colors.black.withValues(alpha: 0.22 * distMyPath01),
+                          Colors.black.withValues(
+                            alpha: (0.10 + 0.16 * distMyPath01).clamp(0.0, 1.0),
+                          ),
                           Colors.transparent,
                         ],
                       ),
@@ -134,14 +134,11 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                   },
                   child: PageView.builder(
                     controller: _pageController,
-                    // ✅ Evita “overshoot”/glow sui bordi durante lo snap tra pagine.
                     physics: const PageScrollPhysics(),
                     itemCount: 5,
                     onPageChanged: (i) => setState(() => _index = i),
                     itemBuilder: (context, i) {
                       final delta = (page - i).abs().clamp(0.0, 1.0);
-                      // ✅ Effetto “depth” più sottile: meno bordi visibili sui lati
-                      // e meno rischio di artefatti durante lo snap.
                       final scaleY = 1.0 - (0.018 * delta);
                       final lift = 6.0 * delta;
 
@@ -172,15 +169,12 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                 ),
               ),
 
-              // ✅ IMPORTANTISSIMO: la BottomNav viene disegnata DENTRO la stessa Stack del body.
-              // Se la lasciamo in Scaffold.bottomNavigationBar, il body (e quindi lo scrim/dimming)
-              // non copre davvero l’area sotto la nav -> si vede una “differenza” in basso.
-              // Così invece background + scrim + nav sono un unico layer continuo.
               Align(
                 alignment: Alignment.bottomCenter,
                 child: PixelBottomNavBar(
                   currentIndex: _index,
                   page: page,
+                  environment: distMyPath01, // ✅ nav segue lo scurire
                   onChanged: _goToTab,
                 ),
               ),
@@ -209,10 +203,6 @@ class _ShellContent extends StatelessWidget {
   }
 }
 
-/// “Glass soft” dietro ai contenuti delle tab non-MyPath.
-///
-/// - Blur leggerissimo del background
-/// - Overlay molto tenue (leggibilità senza ammazzare i colori)
 class _ContentGlass extends StatelessWidget {
   const _ContentGlass({required this.child, required this.t});
   final Widget child;
@@ -222,9 +212,6 @@ class _ContentGlass extends StatelessWidget {
   Widget build(BuildContext context) {
     if (t <= 0.001) return child;
 
-    // ✅ Performance: niente BackdropFilter full-screen.
-    // Manteniamo la stessa “leggibilità” con un semplice scrim/gradient overlay
-    // (molto più leggero e senza artefatti sui bordi).
     return Stack(
       children: [
         Positioned.fill(

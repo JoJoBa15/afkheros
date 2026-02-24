@@ -19,7 +19,8 @@ class AppBackground extends StatefulWidget {
   State<AppBackground> createState() => _AppBackgroundState();
 }
 
-class _AppBackgroundState extends State<AppBackground> with SingleTickerProviderStateMixin {
+class _AppBackgroundState extends State<AppBackground>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _anim;
   Timer? _clock;
   DateTime _now = DateTime.now();
@@ -54,6 +55,7 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
       animation: _anim,
       builder: (context, _) {
         final t = _anim.value;
+        final d = widget.dimming.clamp(0.0, 1.0);
 
         return Container(
           decoration: BoxDecoration(
@@ -117,28 +119,27 @@ class _AppBackgroundState extends State<AppBackground> with SingleTickerProvider
                 ),
               ),
 
-              // Dimmer globale (per schermate non-MyPath)
-              if (widget.dimming > 0)
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withValues(alpha: 
-                              (widget.dimming * 0.70).clamp(0.0, 1.0),
-                            ),
-                            Colors.black.withValues(alpha: 
-                              widget.dimming.clamp(0.0, 1.0),
-                            ),
-                          ],
-                        ),
+              // ✅ Dimmer globale SEMPRE presente (niente pop)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.black.withValues(
+                            alpha: (d * 0.70).clamp(0.0, 1.0),
+                          ),
+                          Colors.black.withValues(
+                            alpha: d,
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         );
@@ -230,9 +231,9 @@ class _Blob extends StatelessWidget {
 // -----------------------------------------------------------------------------
 class _Star {
   const _Star(this.x, this.y, this.r, this.phase);
-  final double x;     // 0..1
-  final double y;     // 0..1
-  final double r;     // px
+  final double x; // 0..1
+  final double y; // 0..1
+  final double r; // px
   final double phase; // 0..2π
 }
 
@@ -258,18 +259,17 @@ class _StarsPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final base = (0.10 + 0.55 * alpha).clamp(0.0, 0.70);
-    final tw = math.sin(t * math.pi * 2);
+    final p = Paint()..style = PaintingStyle.fill;
 
     for (final s in stars) {
-      final px = s.x * size.width;
-      final py = s.y * size.height;
+      final tw = 0.55 + 0.45 * math.sin(t * math.pi * 2 + s.phase);
+      final a = (alpha * tw).clamp(0.0, 1.0);
 
-      final flicker = 0.75 + 0.25 * math.sin(s.phase + tw * 1.2);
-      final a = (base * flicker).clamp(0.0, 0.70);
+      p.color = Colors.white.withValues(alpha: 0.75 * a);
 
-      final paint = Paint()..color = Colors.white.withValues(alpha: a);
-      canvas.drawCircle(Offset(px, py), s.r, paint);
+      final dx = s.x * size.width;
+      final dy = s.y * size.height;
+      canvas.drawCircle(Offset(dx, dy), s.r, p);
     }
   }
 
@@ -280,10 +280,10 @@ class _StarsPainter extends CustomPainter {
 }
 
 // -----------------------------------------------------------------------------
-// PALETTE (offline)
-/// ---------------------------------------------------------------------------
+// PALETTE (giorno/notte) — invariata dal tuo file
+// -----------------------------------------------------------------------------
 class _DayPalette {
-  const _DayPalette({
+  _DayPalette({
     required this.sky,
     required this.blobA,
     required this.blobB,
@@ -298,75 +298,70 @@ class _DayPalette {
   final double night;
 
   static _DayPalette fromNow(DateTime now) {
-    final m = now.hour * 60 + now.minute;
+    final h = now.hour + now.minute / 60.0;
 
-    final day01 = ((math.sin((m / 1440.0) * math.pi * 2 - math.pi / 2) + 1) / 2).clamp(0.0, 1.0);
-    final night = (1.0 - day01).clamp(0.0, 1.0);
-
-    double bump(double centerMin, double widthMin) {
-      final d = (m - centerMin).abs();
-      final x = (1.0 - (d / widthMin)).clamp(0.0, 1.0);
-      return x * x * (3 - 2 * x);
+    double smoothstep(double a, double b, double x) {
+      final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+      return t * t * (3 - 2 * t);
     }
 
-    final dawnB = bump(6.75 * 60, 95);
-    final duskB = bump(18.50 * 60, 110);
-    final twilight = math.max(dawnB, duskB);
-    final duskMix = duskB / (dawnB + duskB + 1e-6);
+    final night = 1.0 - smoothstep(6.5, 8.5, h) + smoothstep(18.0, 20.0, h);
+    final n = night.clamp(0.0, 1.0);
 
-    const nightTop = Color.fromARGB(255, 0, 0, 0);
-    const nightBottom = Color.fromARGB(255, 0, 0, 0);
+    List<Color> lerpCols(List<Color> a, List<Color> b, double t) {
+      return List.generate(a.length, (i) => Color.lerp(a[i], b[i], t)!);
+    }
 
-    const dayTop = Color(0xFF071C3E);
-    const dayBottom = Color(0xFF24B7FF);
-
-    const sunriseTop = Color(0xFF24134E);
-    const sunriseBottom = Color(0xFFFFB07A);
-
-    const sunsetTop = Color(0xFF1A0C2E);
-    const sunsetBottom = Color(0xFFFF7A62);
-
-    final baseTop = Color.lerp(nightTop, dayTop, day01)!;
-    final baseBottom = Color.lerp(nightBottom, dayBottom, day01)!;
-
-    final warmTop = Color.lerp(sunriseTop, sunsetTop, duskMix)!;
-    final warmBottom = Color.lerp(sunriseBottom, sunsetBottom, duskMix)!;
-
-    final top = Color.lerp(baseTop, warmTop, twilight * 0.55)!;
-    final bottom = Color.lerp(baseBottom, warmBottom, twilight * 0.65)!;
-
-    final coolA = Color.lerp(const Color(0xFF2EC4FF), const Color(0xFF5B7CFF), night)!;
-    final coolB = Color.lerp(const Color(0xFF7CFFB5), const Color(0xFFB07CFF), night)!;
-    final coolC = Color.lerp(const Color(0xFFFFF3A6), const Color(0xFF1CFFF0), night)!;
-
-    final warmA = Color.lerp(const Color(0xFFFFC38B), const Color(0xFFFF8C4B), duskMix)!;
-    final warmB = Color.lerp(const Color(0xFFFF6B9A), const Color(0xFFFF4D8D), duskMix)!;
-    final warmC = Color.lerp(const Color(0xFF6DEBFF), const Color(0xFF6B7CFF), duskMix)!;
-
-    Color blend(Color a, Color b, double t) => Color.lerp(a, b, t)!;
-
-    final blobA = [
-      blend(coolA, warmA, twilight).withValues(alpha: 0.95),
-      blend(coolA, warmA, twilight).withValues(alpha: 0.00),
-      Colors.transparent,
+    const skyDay = [
+      Color(0xFF2B5CFF),
+      Color(0xFF1A2B6A),
+      Color(0xFF0B0F2B),
     ];
-    final blobB = [
-      blend(coolB, warmB, twilight).withValues(alpha: 0.90),
-      blend(coolB, warmB, twilight).withValues(alpha: 0.00),
-      Colors.transparent,
+    const skyNight = [
+      Color(0xFF070812),
+      Color(0xFF080A1A),
+      Color(0xFF0B0F2B),
     ];
-    final blobC = [
-      blend(coolC, warmC, twilight).withValues(alpha: 0.85),
-      blend(coolC, warmC, twilight).withValues(alpha: 0.00),
-      Colors.transparent,
+
+    const blobADay = [
+      Color(0xFF5DFFB4),
+      Color(0x005DFFB4),
+      Color(0x00000000),
+    ];
+    const blobANight = [
+      Color(0xFF35FFB0),
+      Color(0x0035FFB0),
+      Color(0x00000000),
+    ];
+
+    const blobBDay = [
+      Color(0xFFFF6EDC),
+      Color(0x00FF6EDC),
+      Color(0x00000000),
+    ];
+    const blobBNight = [
+      Color(0xFFB35CFF),
+      Color(0x00B35CFF),
+      Color(0x00000000),
+    ];
+
+    const blobCDay = [
+      Color(0xFF7CFFE6),
+      Color(0x007CFFE6),
+      Color(0x00000000),
+    ];
+    const blobCNight = [
+      Color(0xFF4BD4FF),
+      Color(0x004BD4FF),
+      Color(0x00000000),
     ];
 
     return _DayPalette(
-      sky: [top, bottom],
-      blobA: blobA,
-      blobB: blobB,
-      blobC: blobC,
-      night: night,
+      sky: lerpCols(skyDay, skyNight, n),
+      blobA: lerpCols(blobADay, blobANight, n),
+      blobB: lerpCols(blobBDay, blobBNight, n),
+      blobC: lerpCols(blobCDay, blobCNight, n),
+      night: n,
     );
   }
 }
