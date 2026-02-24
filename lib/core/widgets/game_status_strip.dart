@@ -19,20 +19,15 @@ class _GameStatusStripState extends State<GameStatusStrip> {
   @override
   void initState() {
     super.initState();
-
-    _syncClock();
     _syncBattery();
 
-    // Aggiorna l’orario al cambio minuto (controllo ogni secondo ma setState solo quando cambia minuto)
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       final n = DateTime.now();
-      if (n.minute != _now.minute) {
-        setState(() => _now = n);
-      }
+      if (n.minute != _now.minute) setState(() => _now = n);
     });
 
-    // Batteria: polling tranquillo (eviti EventChannel per ora)
-    _batteryTimer = Timer.periodic(const Duration(seconds: 30), (_) => _syncBattery());
+    _batteryTimer =
+        Timer.periodic(const Duration(seconds: 30), (_) => _syncBattery());
   }
 
   @override
@@ -48,10 +43,6 @@ class _GameStatusStripState extends State<GameStatusStrip> {
     setState(() => _battery = info);
   }
 
-  void _syncClock() {
-    _now = DateTime.now();
-  }
-
   String _hhmm(DateTime dt) {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
@@ -60,11 +51,14 @@ class _GameStatusStripState extends State<GameStatusStrip> {
 
   @override
   Widget build(BuildContext context) {
-    // viewPadding = area “fisica” occupata da cutout/gesture, anche quando status bar è nascosta
     final vp = MediaQuery.of(context).viewPadding;
 
-    // Margine base “più centrale” + compensazione se c’è intrusione laterale
-    const baseSide = 18.0;
+    // ✅ altezza della “status bar” reale
+    final top = vp.top;
+
+    // ✅ più respiro ai lati
+    final w = MediaQuery.of(context).size.width;
+    final baseSide = (w * 0.055).clamp(18.0, 28.0); // 5.5% dello schermo
     final left = baseSide + (vp.left > 0 ? vp.left : 0);
     final right = baseSide + (vp.right > 0 ? vp.right : 0);
 
@@ -76,27 +70,44 @@ class _GameStatusStripState extends State<GameStatusStrip> {
     final icon = charging ? Icons.battery_charging_full : Icons.battery_full;
     final text = level == null ? '—%' : '$level%';
 
-    // SafeArea top = true: spinge dentro senza sforare notch/punch-hole in alto.
-    return SafeArea(
-      bottom: false,
+    // ✅ “più in alto” ottico: spostiamo su di ~1.5px
+    final lift = -(top * 0.35).clamp(6.0, 14.0);
+
+    return SizedBox(
+      height: top,
       child: Padding(
-        padding: EdgeInsets.only(left: left, right: right, top: 6, bottom: 6),
-        child: DefaultTextStyle(
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.2,
-              ) ??
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        padding: EdgeInsets.only(left: left, right: right),
+        child: Transform.translate(
+          offset: Offset(0, lift),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(time),
+              Text(
+                time,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  height: 1.0,
+                  color: Colors.white,
+                  letterSpacing: 0.8,
+                ),
+              ),
               const Spacer(),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(icon, size: 16, color: Colors.white.withOpacity(0.95)),
-                  const SizedBox(width: 6),
-                  Text(text),
+                  Icon(icon, size: 16, color: Colors.white),
+                  const SizedBox(width: 5),
+                  Text(
+                    text,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                      color: Colors.white,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
                 ],
               ),
             ],

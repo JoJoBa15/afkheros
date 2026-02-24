@@ -1,90 +1,175 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-
-import '../../state/game_state.dart';
-import 'simple_page.dart';
 
 class ProfileDrawer extends StatelessWidget {
   const ProfileDrawer({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final gs = context.watch<GameState>();
+    // Drawer nativo: animazione laterale già ottima.
     return Drawer(
-      // Sfondo del drawer nero assoluto
-      backgroundColor: Colors.black,
-      child: Column(
-        children: [
-          UserAccountsDrawerHeader(
-            // Sfondo dell'header nero assoluto
-            decoration: const BoxDecoration(color: Colors.black),
-            currentAccountPicture: const CircleAvatar(
-              backgroundColor: Color(0xFF1A1A1A), // Grigio scurissimo per staccare dal nero
-              child: Icon(Icons.person, color: Colors.white70),
+      backgroundColor: Colors.transparent,
+      child: ClipRRect(
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(26),
+          bottomRight: Radius.circular(26),
+        ),
+        child: BackdropFilter(
+          // ✅ blur SOLO sul pannello
+          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.only(
+                topRight: Radius.circular(26),
+                bottomRight: Radius.circular(26),
+              ),
+              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF2B3A46).withOpacity(0.62),
+                  const Color(0xFF12161C).withOpacity(0.72),
+                ],
+              ),
             ),
-            accountName: Text(gs.username),
-            accountEmail: Text('Lv. ${gs.level}'),
+            child: SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.10),
+                          border: Border.all(color: Colors.white.withOpacity(0.14)),
+                        ),
+                        child: const Icon(Icons.person_outline, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text(
+                          'Menu',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _tile(
+                    icon: Icons.manage_accounts_outlined,
+                    title: 'Profilo',
+                    subtitle: 'Account, avatar, progressi',
+                    onTap: () {
+                      Navigator.of(context).maybePop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: Profilo')),
+                      );
+                    },
+                  ),
+                  _tile(
+                    icon: Icons.tune_rounded,
+                    title: 'Impostazioni',
+                    subtitle: 'Audio, notifiche, privacy',
+                    onTap: () {
+                      Navigator.of(context).maybePop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: Impostazioni')),
+                      );
+                    },
+                  ),
+                  _tile(
+                    icon: Icons.timer_outlined,
+                    title: 'Focus tools',
+                    subtitle: 'Preset, suoni, blocco distrazioni',
+                    onTap: () {
+                      Navigator.of(context).maybePop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('TODO: Focus tools')),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
-          
-          _drawerItem(
-            context,
-            icon: Icons.campaign,
-            title: 'Comunicazioni',
-            onTap: () => _open(context, 'Comunicazioni'),
-          ),
-          _drawerItem(
-            context,
-            icon: Icons.emoji_events,
-            title: 'Record',
-            onTap: () => _open(context, 'Record'),
-          ),
-          _drawerItem(
-            context,
-            icon: Icons.history,
-            title: 'Cronologia',
-            onTap: () => _open(context, 'Cronologia'),
-          ),
-          _drawerItem(
-            context,
-            icon: Icons.group,
-            title: 'Amici',
-            onTap: () => _open(context, 'Amici'),
-          ),
-          
-          const Spacer(),
-          const Divider(height: 1, color: Color(0xFF1A1A1A)), // Divider scuro
-          
-          _drawerItem(
-            context,
-            icon: Icons.settings,
-            title: 'Impostazioni',
-            onTap: () => _open(context, 'Impostazioni'),
-          ),
-          const SizedBox(height: 10),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _drawerItem(
-    BuildContext context, {
+  Widget _tile({
     required IconData icon,
     required String title,
+    required String subtitle,
     required VoidCallback onTap,
   }) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.white70),
-      title: Text(title, style: const TextStyle(color: Colors.white)),
-      onTap: () {
-        Navigator.pop(context); // chiude drawer
-        onTap();
-      },
-    );
-  }
-
-  void _open(BuildContext context, String title) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SimplePage(title: title)),
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Colors.white.withOpacity(0.08),
+            border: Border.all(color: Colors.white.withOpacity(0.12)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  color: Colors.white.withOpacity(0.10),
+                ),
+                child: Icon(icon, color: Colors.white, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.62),
+                        fontSize: 12.5,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withOpacity(0.55)),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

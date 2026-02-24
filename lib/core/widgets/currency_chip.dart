@@ -8,48 +8,42 @@ class CurrenciesBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gs = context.watch<GameState>();
+
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        CurrencyChip(icon: Icons.circle, label: '${gs.gold}', tooltip: 'Oro'),
-        const SizedBox(width: 8),
-        CurrencyChip(icon: Icons.diamond, label: '${gs.gems}', tooltip: 'Gemme'),
-        const SizedBox(width: 8),
+        _CurrencyInline(icon: Icons.monetization_on_rounded, value: gs.gold),
+        const SizedBox(width: 15),
+        _CurrencyInline(icon: Icons.diamond_outlined, value: gs.gems),
       ],
     );
   }
 }
 
-class CurrencyChip extends StatelessWidget {
+class _CurrencyInline extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String tooltip;
+  final int value;
 
-  const CurrencyChip({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-  });
+  const _CurrencyInline({required this.icon, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF2A2A2A),
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: const Color(0xFF3A3A3A)),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 16, color: Colors.white.withOpacity(0.90)),
+        const SizedBox(width: 6),
+        Text(
+          '$value',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.2,
+            height: 1.0,
+            color: Colors.white.withOpacity(0.92),
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(icon, size: 16),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
+      ],
     );
   }
 }
