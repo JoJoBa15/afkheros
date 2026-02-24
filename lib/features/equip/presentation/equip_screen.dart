@@ -16,8 +16,7 @@ class EquipScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Equip', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           PixelPanel(
             child: Row(
               children: [

@@ -30,8 +30,7 @@ class BlacksmithScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Blacksmith', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text('Ferro disponibile: ${gs.iron}', style: const TextStyle(color: Colors.white70)),
           const SizedBox(height: 12),
           Expanded(

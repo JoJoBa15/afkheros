@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -21,28 +23,23 @@ class RootShell extends StatefulWidget {
 
 class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 2;
+  late final PageController _pageController;
 
   static const double _contentBottomPad =
       PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
-
-  final _tabs = const [
-    _ShellContent(child: ShopScreen()),
-    _ShellContent(child: BlacksmithScreen()),
-    MyPathScreen(),
-    _ShellContent(child: EquipScreen()),
-    _ShellContent(child: ClanScreen()),
-  ];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _pageController = PageController(initialPage: _index);
     _applyImmersiveSticky();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -55,43 +52,120 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
+  void _goToTab(int i) {
+    if (i == _index) return;
+    HapticFeedback.selectionClick();
+    _pageController.animateToPage(
+      i,
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  double _currentPage() {
+    if (!_pageController.hasClients) return _index.toDouble();
+    return _pageController.page ?? _index.toDouble();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isMyPath = _index == 2;
+    final String? tabTitle = switch (_index) {
+      0 => 'Shop',
+      1 => 'Forge',
+      3 => 'Equip',
+      4 => 'Clan',
+      _ => null,
+    };
 
     return Scaffold(
       drawer: const ProfileDrawer(),
       extendBodyBehindAppBar: true,
       extendBody: true,
       backgroundColor: Colors.transparent,
-      appBar: const AfkShellAppBar.drawer(),
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: AppBackground(
-              dimming: isMyPath ? 0.0 : 0.42,
-            ),
-          ),
+      appBar: AfkShellAppBar.drawer(title: tabTitle),
+      body: AnimatedBuilder(
+        animation: _pageController,
+        builder: (context, _) {
+          final page = _currentPage();
 
-          Positioned.fill(
-            child: IndexedStack(
-              index: _index,
-              children: _tabs,
-            ),
-          ),
-        ],
+          // 0 su MyPath, 1 su tutte le altre tab.
+          final distMyPath01 = (page - 2.0).abs().clamp(0.0, 1.0);
+          final bgDimming = 0.42 * distMyPath01;
+          final glassT = distMyPath01;
+
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: AppBackground(
+                  dimming: bgDimming,
+                ),
+              ),
+
+              Positioned.fill(
+                child: PageView.builder(
+                  controller: _pageController,
+                  physics: const BouncingScrollPhysics(parent: PageScrollPhysics()),
+                  itemCount: 5,
+                  onPageChanged: (i) => setState(() => _index = i),
+                  itemBuilder: (context, i) {
+                    final delta = (page - i).abs().clamp(0.0, 1.0);
+                    final scale = 1.0 - (0.030 * delta);
+                    final opacity = 1.0 - (0.12 * delta);
+                    final lift = 10.0 * delta;
+
+                    final Widget raw = switch (i) {
+                      0 => const ShopScreen(),
+                      1 => const BlacksmithScreen(),
+                      2 => const MyPathScreen(),
+                      3 => const EquipScreen(),
+                      4 => const ClanScreen(),
+                      _ => const SizedBox.shrink(),
+                    };
+
+                    final Widget pageChild = (i == 2)
+                        ? raw
+                        : _ShellContent(
+                            glassT: glassT,
+                            child: raw,
+                          );
+
+                    return _KeepAlive(
+                      child: Opacity(
+                        opacity: opacity,
+                        child: Transform.translate(
+                          offset: Offset(0, lift),
+                          child: Transform.scale(
+                            scale: scale,
+                            child: pageChild,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
       ),
-      bottomNavigationBar: PixelBottomNavBar(
-        currentIndex: _index,
-        onChanged: (i) => setState(() => _index = i),
+      bottomNavigationBar: AnimatedBuilder(
+        animation: _pageController,
+        builder: (context, _) {
+          return PixelBottomNavBar(
+            currentIndex: _index,
+            page: _currentPage(),
+            onChanged: _goToTab,
+          );
+        },
       ),
     );
   }
 }
 
 class _ShellContent extends StatelessWidget {
-  const _ShellContent({required this.child});
+  const _ShellContent({required this.child, required this.glassT});
   final Widget child;
+  final double glassT;
 
   @override
   Widget build(BuildContext context) {
@@ -100,7 +174,67 @@ class _ShellContent extends StatelessWidget {
         top: AfkShellAppBar.kHeight,
         bottom: _RootShellState._contentBottomPad,
       ),
-      child: child,
+      child: _ContentGlass(t: glassT, child: child),
     );
+  }
+}
+
+/// “Glass soft” dietro ai contenuti delle tab non-MyPath.
+///
+/// - Blur leggerissimo del background
+/// - Overlay molto tenue (leggibilità senza ammazzare i colori)
+class _ContentGlass extends StatelessWidget {
+  const _ContentGlass({required this.child, required this.t});
+  final Widget child;
+  final double t; // 0..1
+
+  @override
+  Widget build(BuildContext context) {
+    if (t <= 0.001) return child;
+
+    return ClipRect(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.black.withOpacity(0.04 * t),
+                      Colors.black.withOpacity(0.10 * t),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _KeepAlive extends StatefulWidget {
+  const _KeepAlive({required this.child});
+  final Widget child;
+
+  @override
+  State<_KeepAlive> createState() => _KeepAliveState();
+}
+
+class _KeepAliveState extends State<_KeepAlive>
+    with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

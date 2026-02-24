@@ -16,19 +16,21 @@ class AfkShellAppBar extends StatelessWidget implements PreferredSizeWidget {
   final AfkShellLeading leadingMode;
   final VoidCallback? onLeadingTap;
   final Widget? trailing;
+  final String? title;
 
   const AfkShellAppBar({
     super.key,
     required this.leadingMode,
     this.onLeadingTap,
     this.trailing,
+    this.title,
   });
 
-  const AfkShellAppBar.drawer({super.key, this.trailing})
+  const AfkShellAppBar.drawer({super.key, this.trailing, this.title})
       : leadingMode = AfkShellLeading.drawer,
         onLeadingTap = null;
 
-  const AfkShellAppBar.back({super.key, this.onLeadingTap, this.trailing})
+  const AfkShellAppBar.back({super.key, this.onLeadingTap, this.trailing, this.title})
       : leadingMode = AfkShellLeading.back;
 
   @override
@@ -54,6 +56,7 @@ class AfkShellAppBar extends StatelessWidget implements PreferredSizeWidget {
         leadingMode: leadingMode,
         onLeadingTap: onLeadingTap,
         trailing: trailing,
+        title: title,
       ),
     );
   }
@@ -66,11 +69,13 @@ class _AfkShellHeader extends StatelessWidget {
     required this.leadingMode,
     required this.onLeadingTap,
     required this.trailing,
+    required this.title,
   });
 
   final AfkShellLeading leadingMode;
   final VoidCallback? onLeadingTap;
   final Widget? trailing;
+  final String? title;
 
   @override
   Widget build(BuildContext context) {
@@ -94,10 +99,14 @@ class _AfkShellHeader extends StatelessWidget {
                   mode: leadingMode,
                   onTap: onLeadingTap,
                 ),
-                const Expanded(
+                Expanded(
                   child: Align(
                     alignment: Alignment.center,
-                    child: _CenterSafeHairline(leftFade: 28, rightFade: 28),
+                    child: _CenterTitleOrHairline(
+                      title: title,
+                      leftFade: 28,
+                      rightFade: 28,
+                    ),
                   ),
                 ),
                 Padding(
@@ -203,12 +212,81 @@ class _AppleUnifiedGlassBar extends StatelessWidget {
   }
 }
 
+class _CenterTitleOrHairline extends StatelessWidget {
+  final String? title;
+  final double leftFade;
+  final double rightFade;
+
+  const _CenterTitleOrHairline({
+    required this.title,
+    required this.leftFade,
+    required this.rightFade,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = title?.trim();
+
+    final child = (t == null || t.isEmpty)
+        ? _CenterSafeHairline(
+            key: const ValueKey('hairline'),
+            leftFade: leftFade,
+            rightFade: rightFade,
+          )
+        : SizedBox(
+            key: ValueKey('title_$t'),
+            height: 45,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Opacity(
+                  opacity: 0.70,
+                  child: _CenterSafeHairline(leftFade: leftFade, rightFade: rightFade),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Text(
+                    t,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.92),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeOutCubic,
+      transitionBuilder: (w, a) {
+        final slide = Tween<Offset>(
+          begin: const Offset(0, 0.18),
+          end: Offset.zero,
+        ).animate(a);
+        return FadeTransition(
+          opacity: a,
+          child: SlideTransition(position: slide, child: w),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
 /// Hairline centrale: dà continuità senza mettere testo/icone al centro.
 class _CenterSafeHairline extends StatelessWidget {
   final double leftFade;
   final double rightFade;
 
   const _CenterSafeHairline({
+    super.key,
     required this.leftFade,
     required this.rightFade,
   });

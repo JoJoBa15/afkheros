@@ -11,8 +11,7 @@ class ClanScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Clan', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           const PixelPanel(
             child: Text('TODO: Leaderboard / Boss / Chat (in futuro).'),
           ),

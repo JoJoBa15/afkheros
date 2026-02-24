@@ -9,11 +9,18 @@ import 'package:flutter/material.dart';
 /// - Orb centrale sollevato
 class PixelBottomNavBar extends StatefulWidget {
   final int currentIndex;
+
+  /// Progress continuo (es: PageController.page) per una selezione “seamless” durante lo swipe.
+  ///
+  /// Se null, usa currentIndex.
+  final double? page;
+
   final ValueChanged<int> onChanged;
 
   const PixelBottomNavBar({
     super.key,
     required this.currentIndex,
+    this.page,
     required this.onChanged,
   });
 
@@ -57,6 +64,13 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
     final border = _op(Colors.white, 0.14);
     final highlight = _op(Colors.white, 0.10);
 
+    final page = widget.page ?? widget.currentIndex.toDouble();
+
+    double sel(int index) {
+      final d = (page - index).abs();
+      return (1.0 - d).clamp(0.0, 1.0);
+    }
+
     return SafeArea(
       top: false,
       child: Padding(
@@ -94,7 +108,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                             child: _GlassNavItem(
                               label: 'Shop',
                               icon: Icons.shopping_bag,
-                              selected: widget.currentIndex == 0,
+                              selection: sel(0),
                               onTap: () => widget.onChanged(0),
                               selectedColor: primary,
                             ),
@@ -103,7 +117,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                             child: _GlassNavItem(
                               label: 'Forge',
                               icon: Icons.hardware,
-                              selected: widget.currentIndex == 1,
+                              selection: sel(1),
                               onTap: () => widget.onChanged(1),
                               selectedColor: primary,
                             ),
@@ -115,7 +129,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                             child: _GlassNavItem(
                               label: 'Equip',
                               icon: Icons.backpack,
-                              selected: widget.currentIndex == 3,
+                              selection: sel(3),
                               onTap: () => widget.onChanged(3),
                               selectedColor: primary,
                             ),
@@ -124,7 +138,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                             child: _GlassNavItem(
                               label: 'Clan',
                               icon: Icons.shield,
-                              selected: widget.currentIndex == 4,
+                              selection: sel(4),
                               onTap: () => widget.onChanged(4),
                               selectedColor: primary,
                             ),
@@ -142,7 +156,7 @@ class _PixelBottomNavBarState extends State<PixelBottomNavBar>
                         size: PixelBottomNavBar.centerSize,
                         label: 'My Path',
                         icon: Icons.explore,
-                        selected: widget.currentIndex == 2,
+                        selection: sel(2),
                         onTap: () => widget.onChanged(2),
                         accent: primary,
                         glowDx: dx,
@@ -267,22 +281,27 @@ class _GlassShell extends StatelessWidget {
 class _GlassNavItem extends StatelessWidget {
   final String label;
   final IconData icon;
-  final bool selected;
+  final double selection; // 0..1
   final VoidCallback onTap;
   final Color selectedColor;
 
   const _GlassNavItem({
     required this.label,
     required this.icon,
-    required this.selected,
+    required this.selection,
     required this.onTap,
     required this.selectedColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final t = selection.clamp(0.0, 1.0);
+
     final inactive = _op(Colors.white, 0.68);
     final active = selectedColor;
+
+    final iconColor = Color.lerp(inactive, active, t)!;
+    final labelColor = Color.lerp(inactive, active, t)!;
 
     return Material(
       color: Colors.transparent,
@@ -291,26 +310,27 @@ class _GlassNavItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         child: Center(
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
-              color: selected ? _op(active, 0.10) : Colors.transparent,
-              border: selected
-                  ? Border.all(color: _op(active, 0.22), width: 1)
-                  : Border.all(color: Colors.transparent, width: 1),
+              color: active.withOpacity(0.10 * t),
+              border: Border.all(
+                color: active.withOpacity(0.22 * t),
+                width: 1,
+              ),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 AnimatedScale(
-                  duration: const Duration(milliseconds: 220),
+                  duration: const Duration(milliseconds: 180),
                   curve: Curves.easeOutCubic,
-                  scale: selected ? 1.08 : 1.0,
+                  scale: 1.0 + (0.08 * t),
                   child: Icon(
                     icon,
-                    color: selected ? active : inactive,
+                    color: iconColor,
                     size: 22,
                   ),
                 ),
@@ -322,7 +342,7 @@ class _GlassNavItem extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: selected ? active : inactive,
+                    color: labelColor,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -339,7 +359,7 @@ class _CenterOrbItem extends StatelessWidget {
   final double size;
   final String label;
   final IconData icon;
-  final bool selected;
+  final double selection; // 0..1
   final VoidCallback onTap;
   final Color accent;
 
@@ -351,7 +371,7 @@ class _CenterOrbItem extends StatelessWidget {
     required this.size,
     required this.label,
     required this.icon,
-    required this.selected,
+    required this.selection,
     required this.onTap,
     required this.accent,
     required this.glowDx,
@@ -361,8 +381,11 @@ class _CenterOrbItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = selection.clamp(0.0, 1.0);
+
     final inactiveIcon = _op(Colors.white, 0.88);
     final activeIcon = const Color(0xFF0B0B0B);
+    final iconColor = Color.lerp(inactiveIcon, activeIcon, t)!;
 
     return Material(
       color: Colors.transparent,
@@ -385,12 +408,11 @@ class _CenterOrbItem extends StatelessWidget {
                       blurRadius: 18,
                       offset: const Offset(0, 10),
                     ),
-                    if (selected)
-                      BoxShadow(
-                        color: _op(accent, 0.30),
-                        blurRadius: 22,
-                        offset: const Offset(0, 10),
-                      ),
+                    BoxShadow(
+                      color: accent.withOpacity(0.30 * t),
+                      blurRadius: 22,
+                      offset: const Offset(0, 10),
+                    ),
                   ],
                 ),
                 child: ClipOval(
@@ -427,9 +449,11 @@ class _CenterOrbItem extends StatelessWidget {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: selected
-                                    ? _op(accent, 0.35)
-                                    : _op(Colors.white, 0.16),
+                                color: Color.lerp(
+                                  _op(Colors.white, 0.16),
+                                  _op(accent, 0.35),
+                                  t,
+                                )!,
                                 width: 1,
                               ),
                             ),
@@ -439,7 +463,7 @@ class _CenterOrbItem extends StatelessWidget {
                           child: Icon(
                             icon,
                             size: 26,
-                            color: selected ? activeIcon : inactiveIcon,
+                            color: iconColor,
                           ),
                         ),
                       ],
@@ -453,7 +477,7 @@ class _CenterOrbItem extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
-                  color: selected ? accent : _op(Colors.white, 0.70),
+                  color: Color.lerp(_op(Colors.white, 0.70), accent, t),
                   letterSpacing: 0.2,
                 ),
               ),

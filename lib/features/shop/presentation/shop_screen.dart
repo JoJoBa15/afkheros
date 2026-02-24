@@ -16,8 +16,7 @@ class ShopScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Shop', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 6),
           PixelPanel(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
