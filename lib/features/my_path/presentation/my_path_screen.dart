@@ -5,8 +5,8 @@ import 'dart:ui';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-import '../../../state/settings_state.dart';
 import 'focus_session_screen.dart';
+import '../../../state/settings_state.dart';
 
 class MyPathScreen extends StatefulWidget {
   const MyPathScreen({super.key});
@@ -19,36 +19,220 @@ class _MyPathScreenState extends State<MyPathScreen> {
   Timer? _clock;
   DateTime _now = DateTime.now();
 
+  // Persistent draggable sheet that can be opened by dragging up from anywhere.
+  static const double _minSheet = 0.001;
+
+  final _stackKey = GlobalKey();
+  final _ctaMeasureKey = GlobalKey();
+  final DraggableScrollableController _sheetCtrl =
+      DraggableScrollableController();
+  final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(_minSheet);
+
+  double _maxSheet = 0.72;
+  double _layoutHeight = 0.0;
+
+  bool _bgDragActive = false;
+
   @override
   void initState() {
     super.initState();
+
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
+
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _recomputeMaxChildSize(),
+    );
   }
 
   @override
   void dispose() {
     _clock?.cancel();
+    _sheetCtrl.dispose();
+    _sheetExtent.dispose();
     super.dispose();
   }
 
-  void _openStartSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (_) => _SessionStartSheet(now: _now),
-    );
+  void _recomputeMaxChildSize() {
+    final stackCtx = _stackKey.currentContext;
+    final ctaCtx = _ctaMeasureKey.currentContext;
+    if (stackCtx == null || ctaCtx == null) return;
+
+    final stackBox = stackCtx.findRenderObject() as RenderBox?;
+    final ctaBox = ctaCtx.findRenderObject() as RenderBox?;
+    if (stackBox == null || ctaBox == null) return;
+    if (!stackBox.hasSize || !ctaBox.hasSize) return;
+
+    final stackTopLeft = stackBox.localToGlobal(Offset.zero);
+    final ctaTopLeft = ctaBox.localToGlobal(Offset.zero);
+
+    final ctaBottomInStack =
+        (ctaTopLeft.dy - stackTopLeft.dy) + ctaBox.size.height;
+
+    // We want the sheet to fill the whole bottom area: from below CTA down to the bottom.
+    const gapUnderCta = 12.0;
+    final available = (stackBox.size.height - (ctaBottomInStack + gapUnderCta))
+        .clamp(220.0, stackBox.size.height);
+
+    final max = (available / stackBox.size.height).clamp(0.30, 0.95);
+
+    if ((max - _maxSheet).abs() > 0.01) {
+      setState(() => _maxSheet = max);
+
+      // If currently above the new max, clamp it.
+      if (_sheetExtent.value > max + 0.001) {
+        _sheetCtrl.animateTo(
+          max,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
   }
+
+  void _openSheet({bool animate = true}) {
+    final target = _maxSheet;
+    if (animate) {
+      _sheetCtrl.animateTo(
+        target,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _sheetCtrl.jumpTo(target);
+    }
+  }
+
+  void _closeSheet({bool animate = true}) {
+    if (animate) {
+      _sheetCtrl.animateTo(
+        _minSheet,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    } else {
+      _sheetCtrl.jumpTo(_minSheet);
+    }
+  }
+
+  bool get _isSheetOpen => _sheetExtent.value > (_minSheet + 0.02);
 
   @override
   Widget build(BuildContext context) {
     final palette = _DayPalette.fromNow(_now);
 
-    return Align(
-      alignment: const Alignment(0, 0),
-      child: _FocusCTA(palette: palette, onTap: () => _openStartSheet(context)),
+    // Keep max height in sync even if layout changes.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _recomputeMaxChildSize(),
+    );
+
+    return LayoutBuilder(
+      builder: (context, c) {
+        _layoutHeight = c.maxHeight;
+
+        return Stack(
+          key: _stackKey,
+          children: [
+            // BACKGROUND + CTA (and swipe-up-anywhere to open)
+            GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onVerticalDragStart: (_) {
+                // Only allow "open" drag when the sheet is closed.
+                if (_isSheetOpen) return;
+                _bgDragActive = true;
+              },
+              onVerticalDragUpdate: (d) {
+                if (!_bgDragActive) return;
+
+                // Convert pixels to sheet size fraction.
+                final delta = (-d.delta.dy) / math.max(1.0, _layoutHeight);
+                final next = (_sheetExtent.value + delta).clamp(
+                  _minSheet,
+                  _maxSheet,
+                );
+
+                _sheetCtrl.jumpTo(next);
+              },
+              onVerticalDragEnd: (d) {
+                if (!_bgDragActive) return;
+                _bgDragActive = false;
+
+                final v = d.primaryVelocity ?? 0.0; // +down, -up
+                final mid = (_minSheet + _maxSheet) * 0.55;
+
+                if (v < -650) {
+                  _openSheet();
+                } else if (v > 650) {
+                  _closeSheet();
+                } else {
+                  if (_sheetExtent.value >= mid) {
+                    _openSheet();
+                  } else {
+                    _closeSheet();
+                  }
+                }
+              },
+              onVerticalDragCancel: () {
+                _bgDragActive = false;
+              },
+              child: Align(
+                alignment: const Alignment(0, 0),
+                child: KeyedSubtree(
+                  key: _ctaMeasureKey,
+                  child: _FocusCTA(palette: palette, onTap: () => _openSheet()),
+                ),
+              ),
+            ),
+
+            // BACKDROP (tap to close)
+            ValueListenableBuilder<double>(
+              valueListenable: _sheetExtent,
+              builder: (_, extent, child) {
+                final t = ((extent - _minSheet) / (_maxSheet - _minSheet))
+                    .clamp(0.0, 1.0);
+
+                return IgnorePointer(
+                  ignoring: t <= 0.01,
+                  child: GestureDetector(
+                    onTap: () => _closeSheet(),
+                    child: AnimatedOpacity(
+                      opacity: t * 0.35,
+                      duration: const Duration(milliseconds: 120),
+                      curve: Curves.easeOut,
+                      child: Container(color: Colors.black),
+                    ),
+                  ),
+                );
+              },
+              child: const SizedBox.shrink(),
+            ),
+
+            // SHEET
+            NotificationListener<DraggableScrollableNotification>(
+              onNotification: (n) {
+                _sheetExtent.value = n.extent;
+                return false;
+              },
+              child: DraggableScrollableSheet(
+                controller: _sheetCtrl,
+                minChildSize: _minSheet,
+                initialChildSize: _minSheet,
+                maxChildSize: _maxSheet,
+                builder: (context, scrollController) {
+                  // We want only two "rest" positions: closed and fully open.
+                  // Snap to open is handled by our animateTo on drag end.
+                  return _SessionStartSheet(
+                    now: _now,
+                    onClose: () => _closeSheet(),
+                    scrollController: scrollController,
+                  );
+                },
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -171,6 +355,10 @@ class _CtaButtonState extends State<_CtaButton>
   @override
   Widget build(BuildContext context) {
     final d = widget.diameter;
+
+    final iconSize = (d * 0.20).clamp(34.0, 46.0);
+    final titleSize = (d * 0.17).clamp(22.0, 28.0);
+    final subSize = (d * 0.09).clamp(12.0, 15.0);
 
     return RepaintBoundary(
       child: AnimatedBuilder(
@@ -325,25 +513,27 @@ class _CtaButtonState extends State<_CtaButton>
                       children: [
                         Icon(
                           Icons.bolt_rounded,
-                          size: 44,
+                          size: iconSize,
                           color: Colors.white.withValues(alpha: 0.96),
                         ),
                         const SizedBox(height: 10),
-                        const Text(
+                        Text(
                           'Concentrati!',
+                          textScaler: const TextScaler.linear(1.0),
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 28,
+                            fontSize: titleSize,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 0.2,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 0),
                         Text(
-                          'Avvia una sessione',
+                          'Tocca per iniziare',
+                          textScaler: const TextScaler.linear(1.0),
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.84),
-                            fontSize: 14.5,
+                            fontSize: subSize,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -396,8 +586,8 @@ class _GlassRingPainter extends CustomPainter {
 
     final inner = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
-      ..color = Colors.white.withValues(alpha: 0.08);
+      ..strokeWidth = 100.0
+      ..color = const Color.fromARGB(255, 15, 168, 150).withValues(alpha: 0.05);
     canvas.drawCircle(Offset(r, r), r * 0.78, inner);
   }
 
@@ -609,8 +799,15 @@ class _DayPalette {
 enum _StartMode { timer, stopwatch }
 
 class _SessionStartSheet extends StatefulWidget {
-  const _SessionStartSheet({required this.now});
+  const _SessionStartSheet({
+    required this.now,
+    required this.onClose,
+    required this.scrollController,
+  });
+
   final DateTime now;
+  final VoidCallback onClose;
+  final ScrollController scrollController;
 
   @override
   State<_SessionStartSheet> createState() => _SessionStartSheetState();
@@ -673,7 +870,7 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
   void _startTimer() {
     final minutes = _timerMinutes[_timerIndex];
-    Navigator.of(context).pop();
+    widget.onClose();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => FocusSessionScreen(
@@ -686,7 +883,7 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
   }
 
   void _startStopwatch() {
-    Navigator.of(context).pop();
+    widget.onClose();
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => const FocusSessionScreen(
@@ -731,9 +928,9 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
                 ),
                 border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
               ),
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              child: ListView(
+                controller: widget.scrollController,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                 children: [
                   Container(
                     width: 46,
