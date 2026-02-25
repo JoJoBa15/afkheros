@@ -175,7 +175,7 @@ class _CtaButtonState extends State<_CtaButton>
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _click,
-        builder: (_, __) {
+        builder: (_, _) {
           final t = Curves.easeInOutCubic.transform(_click.value);
 
           final sheenX = lerpDouble(-d * 0.95, d * 0.95, t)!;
@@ -481,7 +481,7 @@ class _DancingBlobState extends State<_DancingBlob>
       child: RepaintBoundary(
         child: AnimatedBuilder(
           animation: _c,
-          builder: (_, __) {
+          builder: (_, _) {
             final tt = Curves.easeInOutCubic.transform(_c.value);
             final o = Offset.lerp(_curOffset, _targetOffset, tt)!;
             final s = lerpDouble(_curScale, _targetScale, tt)!;
@@ -844,6 +844,7 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
                           alignment: Alignment.topCenter,
                           children: <Widget>[
                             ...previousChildren,
+                            // ignore: use_null_aware_elements
                             if (currentChild != null) currentChild,
                           ],
                         );
