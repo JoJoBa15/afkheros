@@ -3,13 +3,27 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'focus_session_screen.dart';
+import '../../../core/widgets/pixel_bottom_nav_bar.dart';
 import '../../../state/settings_state.dart';
 
 class MyPathScreen extends StatefulWidget {
-  const MyPathScreen({super.key});
+  const MyPathScreen({
+    super.key,
+    this.onFocusMenuOpenChanged,
+    this.closeSignal,
+  });
+
+  /// Notifica a RootShell quando il menu “Concentrati” (sheet) è aperto/chiuso.
+  /// Serve per bloccare swipe pagina, navbar, drawer, ecc.
+  final ValueChanged<bool>? onFocusMenuOpenChanged;
+
+  /// Segnale esterno (RootShell) per chiedere la chiusura del menu.
+  /// Viene incrementato (0,1,2,...) e qui lo intercettiamo.
+  final ValueListenable<int>? closeSignal;
 
   @override
   State<MyPathScreen> createState() => _MyPathScreenState();
@@ -30,8 +44,19 @@ class _MyPathScreenState extends State<MyPathScreen> {
 
   double _maxSheet = 0.72;
   double _layoutHeight = 0.0;
+  double _reservedBottom = 0.0;
+  double _sheetAreaHeight = 1.0;
 
   bool _bgDragActive = false;
+  bool _lastReportedOpen = false;
+  int _closeSeq = 0;
+
+  void _reportOpen(bool open) {
+    if (widget.onFocusMenuOpenChanged == null) return;
+    if (_lastReportedOpen == open) return;
+    _lastReportedOpen = open;
+    widget.onFocusMenuOpenChanged!(open);
+  }
 
   @override
   void initState() {
@@ -44,10 +69,39 @@ class _MyPathScreenState extends State<MyPathScreen> {
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _recomputeMaxChildSize(),
     );
+
+    if (widget.closeSignal != null) {
+      _closeSeq = widget.closeSignal!.value;
+      widget.closeSignal!.addListener(_handleCloseSignal);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant MyPathScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.closeSignal != widget.closeSignal) {
+      oldWidget.closeSignal?.removeListener(_handleCloseSignal);
+      if (widget.closeSignal != null) {
+        _closeSeq = widget.closeSignal!.value;
+        widget.closeSignal!.addListener(_handleCloseSignal);
+      }
+    }
+  }
+
+  void _handleCloseSignal() {
+    final sig = widget.closeSignal;
+    if (sig == null) return;
+    final v = sig.value;
+    if (v == _closeSeq) return;
+    _closeSeq = v;
+    _closeSheet();
   }
 
   @override
   void dispose() {
+    widget.closeSignal?.removeListener(_handleCloseSignal);
+    // Garantisce che la shell venga sbloccata se la pagina viene smontata.
+    _reportOpen(false);
     _clock?.cancel();
     _sheetCtrl.dispose();
     _sheetExtent.dispose();
@@ -70,12 +124,14 @@ class _MyPathScreenState extends State<MyPathScreen> {
     final ctaBottomInStack =
         (ctaTopLeft.dy - stackTopLeft.dy) + ctaBox.size.height;
 
-    // We want the sheet to fill the whole bottom area: from below CTA down to the bottom.
+    // We want the sheet to fill the whole bottom area: from below CTA down to the top of the navbar.
     const gapUnderCta = 12.0;
-    final available = (stackBox.size.height - (ctaBottomInStack + gapUnderCta))
-        .clamp(220.0, stackBox.size.height);
+    final sheetAreaHeight =
+        (stackBox.size.height - _reservedBottom).clamp(1.0, stackBox.size.height);
+    final available = (sheetAreaHeight - (ctaBottomInStack + gapUnderCta))
+        .clamp(220.0, sheetAreaHeight);
 
-    final max = (available / stackBox.size.height).clamp(0.30, 0.95);
+    final max = (available / sheetAreaHeight).clamp(0.30, 0.95);
 
     if ((max - _maxSheet).abs() > 0.01) {
       setState(() => _maxSheet = max);
@@ -92,6 +148,8 @@ class _MyPathScreenState extends State<MyPathScreen> {
   }
 
   void _openSheet({bool animate = true}) {
+    // Blocca subito la shell (swipe, navbar, drawer...).
+    _reportOpen(true);
     final target = _maxSheet;
     if (animate) {
       _sheetCtrl.animateTo(
@@ -122,6 +180,12 @@ class _MyPathScreenState extends State<MyPathScreen> {
   Widget build(BuildContext context) {
     final palette = _DayPalette.fromNow(_now);
 
+    // Area “riservata” alla navbar + safe area: il menu deve fermarsi sopra.
+    final safeBottom = MediaQuery.of(context).padding.bottom;
+    const shellPad =
+        PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
+    _reservedBottom = safeBottom + shellPad;
+
     // Keep max height in sync even if layout changes.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _recomputeMaxChildSize(),
@@ -130,6 +194,7 @@ class _MyPathScreenState extends State<MyPathScreen> {
     return LayoutBuilder(
       builder: (context, c) {
         _layoutHeight = c.maxHeight;
+        _sheetAreaHeight = math.max(1.0, _layoutHeight - _reservedBottom);
 
         return Stack(
           key: _stackKey,
@@ -146,7 +211,7 @@ class _MyPathScreenState extends State<MyPathScreen> {
                 if (!_bgDragActive) return;
 
                 // Convert pixels to sheet size fraction.
-                final delta = (-d.delta.dy) / math.max(1.0, _layoutHeight);
+                final delta = (-d.delta.dy) / math.max(1.0, _sheetAreaHeight);
                 final next = (_sheetExtent.value + delta).clamp(
                   _minSheet,
                   _maxSheet,
@@ -209,25 +274,29 @@ class _MyPathScreenState extends State<MyPathScreen> {
             ),
 
             // SHEET
-            NotificationListener<DraggableScrollableNotification>(
-              onNotification: (n) {
-                _sheetExtent.value = n.extent;
-                return false;
-              },
-              child: DraggableScrollableSheet(
-                controller: _sheetCtrl,
-                minChildSize: _minSheet,
-                initialChildSize: _minSheet,
-                maxChildSize: _maxSheet,
-                builder: (context, scrollController) {
-                  // We want only two "rest" positions: closed and fully open.
-                  // Snap to open is handled by our animateTo on drag end.
-                  return _SessionStartSheet(
-                    now: _now,
-                    onClose: () => _closeSheet(),
-                    scrollController: scrollController,
-                  );
+            Positioned.fill(
+              bottom: _reservedBottom,
+              child: NotificationListener<DraggableScrollableNotification>(
+                onNotification: (n) {
+                  _sheetExtent.value = n.extent;
+                  _reportOpen(_isSheetOpen);
+                  return false;
                 },
+                child: DraggableScrollableSheet(
+                  controller: _sheetCtrl,
+                  minChildSize: _minSheet,
+                  initialChildSize: _minSheet,
+                  maxChildSize: _maxSheet,
+                  builder: (context, scrollController) {
+                    // We want only two "rest" positions: closed and fully open.
+                    // Snap to open is handled by our animateTo on drag end.
+                    return _SessionStartSheet(
+                      now: _now,
+                      onClose: () => _closeSheet(),
+                      scrollController: scrollController,
+                    );
+                  },
+                ),
               ),
             ),
           ],
@@ -898,7 +967,7 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).padding.bottom;
+    const bottom = 12.0;
     final (band, mult) = _bandNow();
     final bandText = mult > 1.0
         ? 'Bonus ${_bandLabel(band)} +${((mult - 1) * 100).round()}%'
@@ -906,11 +975,12 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
     return SafeArea(
       top: false,
+      bottom: false,
       child: Padding(
         padding: EdgeInsets.only(
           left: 12,
           right: 12,
-          bottom: math.max(12, bottom),
+          bottom: bottom,
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(28),
@@ -1111,7 +1181,7 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
                   const SizedBox(height: 6),
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
+                    onPressed: widget.onClose,
                     child: Text(
                       'Annulla',
                       style: TextStyle(

@@ -23,6 +23,8 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   int _index = 2;
   late final PageController _pageController;
   bool _paging = false;
+  bool _focusMenuOpen = false;
+  final ValueNotifier<int> _focusMenuCloseReq = ValueNotifier<int>(0);
 
   static const double _contentBottomPad =
       PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
@@ -39,6 +41,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
+    _focusMenuCloseReq.dispose();
     super.dispose();
   }
 
@@ -52,6 +55,7 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
   }
 
   void _goToTab(int i) {
+    if (_focusMenuOpen) return; // app “bloccata” mentre il menu Focus è aperto
     if (i == _index) return;
     HapticFeedback.selectionClick();
     _pageController.animateToPage(
@@ -76,12 +80,26 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
       _ => null,
     };
 
+    final bool lockShell = _focusMenuOpen;
+
     return Scaffold(
       drawer: const ProfileDrawer(),
+      drawerEnableOpenDragGesture: !lockShell,
       extendBodyBehindAppBar: true,
       extendBody: true,
       backgroundColor: Colors.transparent,
-      appBar: AfkShellAppBar.drawer(title: tabTitle),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(AfkShellAppBar.kHeight),
+        child: AnimatedOpacity(
+          opacity: lockShell ? 0.55 : 1.0,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
+          child: IgnorePointer(
+            ignoring: lockShell,
+            child: AfkShellAppBar.drawer(title: tabTitle),
+          ),
+        ),
+      ),
       body: AnimatedBuilder(
         animation: _pageController,
         builder: (context, _) {
@@ -125,6 +143,13 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
               Positioned.fill(
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (n) {
+                    // 🔒 “paging” SOLO per lo swipe orizzontale del PageView.
+                    // Evita che il drag/scroll verticale del menu Focus blocchi animazioni globali.
+                    final dir = n.metrics.axisDirection;
+                    final isHorizontal =
+                        dir == AxisDirection.left || dir == AxisDirection.right;
+                    if (!isHorizontal) return false;
+
                     if (n is ScrollStartNotification) {
                       if (!_paging) setState(() => _paging = true);
                     } else if (n is ScrollEndNotification) {
@@ -134,9 +159,16 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                   },
                   child: PageView.builder(
                     controller: _pageController,
-                    physics: const PageScrollPhysics(),
+                    physics: lockShell
+                        ? const NeverScrollableScrollPhysics()
+                        : const PageScrollPhysics(),
                     itemCount: 5,
-                    onPageChanged: (i) => setState(() => _index = i),
+                    onPageChanged: (i) {
+                      setState(() {
+                        _index = i;
+                        if (i != 2) _focusMenuOpen = false;
+                      });
+                    },
                     itemBuilder: (context, i) {
                       final delta = (page - i).abs().clamp(0.0, 1.0);
                       final scaleY = 1.0 - (0.018 * delta);
@@ -145,7 +177,14 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
                       final Widget raw = switch (i) {
                         0 => const ShopScreen(),
                         1 => const BlacksmithScreen(),
-                        2 => const MyPathScreen(),
+                        2 => MyPathScreen(
+                            onFocusMenuOpenChanged: (open) {
+                              if (!mounted) return;
+                              if (_focusMenuOpen == open) return;
+                              setState(() => _focusMenuOpen = open);
+                            },
+                            closeSignal: _focusMenuCloseReq,
+                          ),
                         3 => const EquipScreen(),
                         4 => const ClanScreen(),
                         _ => const SizedBox.shrink(),
@@ -171,13 +210,46 @@ class _RootShellState extends State<RootShell> with WidgetsBindingObserver {
 
               Align(
                 alignment: Alignment.bottomCenter,
-                child: PixelBottomNavBar(
-                  currentIndex: _index,
-                  page: page,
-                  environment: distMyPath01, // ✅ nav segue lo scurire
-                  onChanged: _goToTab,
+                child: AnimatedOpacity(
+                  opacity: lockShell ? 0.55 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  child: IgnorePointer(
+                    ignoring: lockShell,
+                    child: PixelBottomNavBar(
+                      currentIndex: _index,
+                      page: page,
+                      environment: distMyPath01, // ✅ nav segue lo scurire
+                      onChanged: _goToTab,
+                    ),
+                  ),
                 ),
               ),
+
+              // 🔒 Zone “fuori menu” ma sopra UI (AppBar + Navbar): tap = chiudi menu.
+              if (lockShell && _index == 2) ...[
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  height: AfkShellAppBar.kHeight,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _focusMenuCloseReq.value++,
+                  ),
+                ),
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: _contentBottomPad +
+                      MediaQuery.of(context).padding.bottom,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => _focusMenuCloseReq.value++,
+                  ),
+                ),
+              ],
             ],
           );
         },
