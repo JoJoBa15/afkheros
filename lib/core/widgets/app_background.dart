@@ -262,14 +262,15 @@ class _StarsPainter extends CustomPainter {
     final p = Paint()..style = PaintingStyle.fill;
 
     for (final s in stars) {
-      final tw = 0.55 + 0.45 * math.sin(t * math.pi * 2 + s.phase);
-      final a = (alpha * tw).clamp(0.0, 1.0);
+      final tw = (0.65 + 0.35 * math.sin(s.phase + t * math.pi * 2)).clamp(0.0, 1.0);
+      final a = (alpha * tw * 0.95).clamp(0.0, 1.0);
 
-      p.color = Colors.white.withValues(alpha: 0.75 * a);
-
-      final dx = s.x * size.width;
-      final dy = s.y * size.height;
-      canvas.drawCircle(Offset(dx, dy), s.r, p);
+      p.color = Colors.white.withValues(alpha: a);
+      canvas.drawCircle(
+        Offset(s.x * size.width, s.y * size.height),
+        s.r,
+        p,
+      );
     }
   }
 
@@ -280,7 +281,7 @@ class _StarsPainter extends CustomPainter {
 }
 
 // -----------------------------------------------------------------------------
-// PALETTE (giorno/notte) — invariata dal tuo file
+// PALETTE (sky + aurora)
 // -----------------------------------------------------------------------------
 class _DayPalette {
   _DayPalette({
@@ -308,14 +309,24 @@ class _DayPalette {
     final night = 1.0 - smoothstep(6.5, 8.5, h) + smoothstep(18.0, 20.0, h);
     final n = night.clamp(0.0, 1.0);
 
+    // brighter morning window (~6..12)
+    final morning =
+        (smoothstep(6.0, 8.2, h) * (1.0 - smoothstep(10.8, 12.0, h)))
+            .clamp(0.0, 1.0);
+
     List<Color> lerpCols(List<Color> a, List<Color> b, double t) {
       return List.generate(a.length, (i) => Color.lerp(a[i], b[i], t)!);
     }
 
     const skyDay = [
-      Color(0xFF2B5CFF),
-      Color(0xFF1A2B6A),
-      Color(0xFF0B0F2B),
+      Color(0xFF3E86FF),
+      Color(0xFF2759FF),
+      Color(0xFF142A66),
+    ];
+    const skyMorning = [
+      Color(0xFF78D7FF),
+      Color(0xFF5A9BFF),
+      Color(0xFF243A8A),
     ];
     const skyNight = [
       Color(0xFF070812),
@@ -357,7 +368,7 @@ class _DayPalette {
     ];
 
     return _DayPalette(
-      sky: lerpCols(skyDay, skyNight, n),
+      sky: lerpCols(lerpCols(skyDay, skyMorning, morning), skyNight, n),
       blobA: lerpCols(blobADay, blobANight, n),
       blobB: lerpCols(blobBDay, blobBNight, n),
       blobC: lerpCols(blobCDay, blobCNight, n),
