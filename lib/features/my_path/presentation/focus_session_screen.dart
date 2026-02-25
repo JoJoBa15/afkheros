@@ -10,16 +10,20 @@ import '../../../state/game_state.dart';
 import '../../../state/settings_state.dart';
 import 'victory_screen.dart';
 
+enum FocusSessionType { timer, stopwatch }
+
 class FocusSessionScreen extends StatefulWidget {
-  final Duration duration;
+  final Duration duration; // timer: durata reale | stopwatch: CAP (es. 60m)
   final String? debugLabel;
   final FocusDisplayMode displayMode;
+  final FocusSessionType type;
 
   const FocusSessionScreen({
     super.key,
     required this.duration,
     required this.displayMode,
     this.debugLabel,
+    this.type = FocusSessionType.timer,
   });
 
   @override
@@ -29,23 +33,37 @@ class FocusSessionScreen extends StatefulWidget {
 class _FocusSessionScreenState extends State<FocusSessionScreen> {
   Timer? _timer;
   Timer? _pixelShiftTimer;
-  late int _remainingSeconds;
+
+  late final DateTime _startedAt;
+
+  late int _remainingSeconds; // timer
+  int _elapsedSeconds = 0; // stopwatch
+
   double _x = 0;
   double _y = 0;
 
   @override
   void initState() {
     super.initState();
-    _remainingSeconds = widget.duration.inSeconds;
+    _startedAt = DateTime.now();
 
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      setState(() => _remainingSeconds--);
-      if (_remainingSeconds <= 0) {
-        _timer?.cancel();
-        _finish();
-      }
-    });
+    if (widget.type == FocusSessionType.timer) {
+      _remainingSeconds = widget.duration.inSeconds;
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _remainingSeconds--);
+        if (_remainingSeconds <= 0) {
+          _timer?.cancel();
+          _finishTimer();
+        }
+      });
+    } else {
+      _elapsedSeconds = 0;
+      _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (!mounted) return;
+        setState(() => _elapsedSeconds++);
+      });
+    }
 
     if (widget.displayMode == FocusDisplayMode.oledSafe) {
       _pixelShiftTimer = Timer.periodic(const Duration(seconds: 30), (_) {
@@ -66,25 +84,72 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
     super.dispose();
   }
 
-  void _finish() {
-    final rewards = FocusRewards(
-      gold: 10,
-      gems: 0,
-      iron: widget.duration.inMinutes >= 25 ? 3 : 1,
-    );
-
-    context.read<GameState>().addRewards(
-          addGold: rewards.gold,
-          addGems: rewards.gems,
-          addIron: rewards.iron,
-        );
-
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => VictoryScreen(rewards: rewards)),
-    );
+  (_Band, double) _bandAt(DateTime t) {
+    final h = t.hour;
+    if (h >= 6 && h < 11) return (_Band.morning, 1.10);
+    if (h >= 11 && h < 17) return (_Band.afternoon, 1.00);
+    if (h >= 17 && h < 22) return (_Band.evening, 1.05);
+    return (_Band.night, 1.00);
   }
 
-  Future<void> _confirmCancel() async {
+  int _coinsForTimer(int minutes) {
+    final (_, mult) = _bandAt(_startedAt);
+    final x = minutes / 60.0;
+    final base = (pow(x, 1.25) * 120).round(); // max 120 a 60m
+    return (base * mult).round();
+  }
+
+  int _coinsForStopwatch(int elapsedMinutes, int capMinutes) {
+    final (_, mult) = _bandAt(_startedAt);
+    if (elapsedMinutes < 15) return 0;
+    final effective = elapsedMinutes > capMinutes ? capMinutes : elapsedMinutes;
+    final base = effective * 2; // 2 monete/min fino al cap
+    return (base * mult).round();
+  }
+
+  int _ironForMinutes(int minutes) {
+    if (minutes >= 60) return 4;
+    if (minutes >= 40) return 3;
+    if (minutes >= 25) return 2;
+    if (minutes >= 15) return 1;
+    return 0;
+  }
+
+  void _pushVictory(FocusRewards rewards) {
+    context.read<GameState>().addRewards(addGold: rewards.gold, addGems: rewards.gems, addIron: rewards.iron);
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => VictoryScreen(rewards: rewards)));
+  }
+
+  void _finishTimer() {
+    final minutes = widget.duration.inMinutes;
+    final rewards = FocusRewards(
+      gold: _coinsForTimer(minutes),
+      gems: 0,
+      iron: _ironForMinutes(minutes),
+    );
+    _pushVictory(rewards);
+  }
+
+  void _finishStopwatch() {
+    final capMinutes = widget.duration.inMinutes > 0 ? widget.duration.inMinutes : 60;
+    final minutes = _elapsedSeconds ~/ 60;
+
+    if (minutes < 15) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Per ottenere ricompense servono almeno 15 minuti.')),
+      );
+      return;
+    }
+
+    final rewards = FocusRewards(
+      gold: _coinsForStopwatch(minutes, capMinutes),
+      gems: 0,
+      iron: _ironForMinutes(minutes > capMinutes ? capMinutes : minutes),
+    );
+    _pushVictory(rewards);
+  }
+
+  Future<void> _confirmCancelTimer() async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
@@ -97,20 +162,73 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
       ),
     );
     if (!mounted) return;
-
     if (ok == true) Navigator.of(context).pop();
+  }
+
+  Future<void> _confirmStopwatchEnd() async {
+    final minutes = _elapsedSeconds ~/ 60;
+    final canReward = minutes >= 15;
+
+    final res = await showDialog<_StopwatchAction>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Terminare cronometro?'),
+        content: Text(canReward
+            ? 'Tempo: ${formatSeconds(_elapsedSeconds)}\nVuoi riscuotere le ricompense?'
+            : 'Tempo: ${formatSeconds(_elapsedSeconds)}\nServono almeno 15 minuti per ottenere ricompense.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, _StopwatchAction.continue_), child: const Text('Continua')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, _StopwatchAction.cancelNoReward),
+            child: const Text('Interrompi'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, _StopwatchAction.finish),
+            child: Text(canReward ? 'Termina & Riscuoti' : 'Termina'),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (res == _StopwatchAction.cancelNoReward) {
+      Navigator.of(context).pop();
+      return;
+    }
+    if (res == _StopwatchAction.finish) {
+      _finishStopwatch();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isOledSafe = widget.displayMode == FocusDisplayMode.oledSafe;
 
-    final total = widget.duration.inSeconds;
-    final remaining = _remainingSeconds.clamp(0, total);
-    final progress = total == 0 ? 1.0 : 1.0 - (remaining / total);
+    final bool isTimer = widget.type == FocusSessionType.timer;
+
+    final int cap = (widget.type == FocusSessionType.stopwatch)
+        ? (widget.duration.inSeconds > 0 ? widget.duration.inSeconds : 3600)
+        : widget.duration.inSeconds;
+
+    final int remaining = isTimer ? _remainingSeconds.clamp(0, cap) : 0;
+    final int elapsed = isTimer ? 0 : _elapsedSeconds;
+
+    final double progress = isTimer
+        ? (cap == 0 ? 1.0 : 1.0 - (remaining / cap))
+        : (cap == 0 ? 0.0 : (elapsed / cap).clamp(0.0, 1.0));
+
+    final title = isTimer ? 'Rimani concentrato.' : 'Cronometro attivo.';
+    final timeText = isTimer ? formatSeconds(remaining) : formatSeconds(elapsed);
+    final hint = isTimer
+        ? 'Modalità timer attiva.'
+        : 'Minimo 15 min per ottenere ricompense.';
+
+    final trailing = isTimer
+        ? _StopChip(label: 'Interrompi', onTap: _confirmCancelTimer)
+        : _StopChip(label: 'Termina', onTap: _confirmStopwatchEnd);
 
     if (isOledSafe) {
-      // Modalità “protetta”: rimaniamo sul nero pieno.
       return Scaffold(
         backgroundColor: Colors.black,
         appBar: AppBar(
@@ -121,9 +239,9 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
             Padding(
               padding: const EdgeInsets.only(right: 8.0),
               child: FilledButton.icon(
-                onPressed: _confirmCancel,
+                onPressed: isTimer ? _confirmCancelTimer : _confirmStopwatchEnd,
                 icon: const Icon(Icons.stop),
-                label: const Text('Interrompi'),
+                label: Text(isTimer ? 'Interrompi' : 'Termina'),
               ),
             )
           ],
@@ -132,24 +250,21 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
           isOledSafe: true,
           x: _x,
           y: _y,
-          remaining: remaining,
+          title: title,
+          timeText: timeText,
           progress: progress,
+          hint: hint,
         ),
       );
     }
 
-    // Modalità fullscreen: stesso header + stesso background (più scuro).
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
-      appBar: AfkShellAppBar.back(
-        trailing: _StopChip(onTap: _confirmCancel),
-      ),
+      appBar: AfkShellAppBar.back(trailing: trailing),
       body: Stack(
         children: [
-          const Positioned.fill(
-            child: AppBackground(dimming: 0.60),
-          ),
+          const Positioned.fill(child: AppBackground(dimming: 0.60)),
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.only(top: AfkShellAppBar.kHeight),
@@ -157,8 +272,10 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
                 isOledSafe: false,
                 x: _x,
                 y: _y,
-                remaining: remaining,
+                title: title,
+                timeText: timeText,
                 progress: progress,
+                hint: hint,
               ),
             ),
           ),
@@ -168,20 +285,27 @@ class _FocusSessionScreenState extends State<FocusSessionScreen> {
   }
 }
 
+enum _StopwatchAction { continue_, cancelNoReward, finish }
+enum _Band { morning, afternoon, evening, night }
+
 class _FocusBody extends StatelessWidget {
   const _FocusBody({
     required this.isOledSafe,
     required this.x,
     required this.y,
-    required this.remaining,
+    required this.title,
+    required this.timeText,
     required this.progress,
+    required this.hint,
   });
 
   final bool isOledSafe;
   final double x;
   final double y;
-  final int remaining;
+  final String title;
+  final String timeText;
   final double progress;
+  final String hint;
 
   @override
   Widget build(BuildContext context) {
@@ -207,13 +331,10 @@ class _FocusBody extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                  Text(
-                    isOledSafe ? 'Modalità protetta attiva.' : 'Rimani concentrato.',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
-                  ),
+                  Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                   const SizedBox(height: 10),
                   Text(
-                    formatSeconds(remaining),
+                    timeText,
                     style: TextStyle(
                       fontSize: 44,
                       fontWeight: FontWeight.w900,
@@ -223,12 +344,7 @@ class _FocusBody extends StatelessWidget {
                   const SizedBox(height: 10),
                   LinearProgressIndicator(value: progress),
                   const SizedBox(height: 10),
-                  Text(
-                    isOledSafe
-                        ? 'Schermo scuro per ridurre il rischio di immagini persistenti.'
-                        : 'Modalità focus attiva.',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
+                  Text(hint, style: const TextStyle(color: Colors.white70)),
                 ],
               ),
             ),
@@ -241,7 +357,8 @@ class _FocusBody extends StatelessWidget {
 }
 
 class _StopChip extends StatelessWidget {
-  const _StopChip({required this.onTap});
+  const _StopChip({required this.label, required this.onTap});
+  final String label;
   final VoidCallback onTap;
 
   @override
@@ -257,7 +374,7 @@ class _StopChip extends StatelessWidget {
             Icon(Icons.stop_rounded, size: 18, color: Colors.white.withValues(alpha: 0.92)),
             const SizedBox(width: 6),
             Text(
-              'Interrompi',
+              label,
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: FontWeight.w900,
