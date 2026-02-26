@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'root_shell.dart';
 
-class AfkHeroApp extends StatelessWidget {
-  const AfkHeroApp({super.key});
+class FocusApp extends StatelessWidget {
+  const FocusApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'AFK Hero (Focus)',
+      title: 'FOCUS!',
       debugShowCheckedModeBanner: false,
       // ✅ Niente glow / stretch ai bordi durante gli scroll (evita “flash” colorati)
       scrollBehavior: const _NoOverscrollIndicatorBehavior(),

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import 'app/afk_hero_app.dart';
+import 'app/focus_app.dart';
 import 'state/game_state.dart';
 import 'state/settings_state.dart';
 
@@ -18,7 +18,7 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => GameState()),
         ChangeNotifierProvider(create: (_) => SettingsState()),
       ],
-      child: const AfkHeroApp(),
+      child: const FocusApp(),
     ),
   );
 }
