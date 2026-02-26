@@ -3,27 +3,18 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'focus_session_screen.dart';
-import '../../../core/widgets/pixel_bottom_nav_bar.dart';
 import '../../../state/settings_state.dart';
 
 class MyPathScreen extends StatefulWidget {
   const MyPathScreen({
     super.key,
-    this.onFocusMenuOpenChanged,
-    this.closeSignal,
+    required this.onOpenSessionMenu,
   });
 
-  /// Notifica a RootShell quando il menu “Concentrati” (sheet) è aperto/chiuso.
-  /// Serve per bloccare swipe pagina, navbar, drawer, ecc.
-  final ValueChanged<bool>? onFocusMenuOpenChanged;
-
-  /// Segnale esterno (RootShell) per chiedere la chiusura del menu.
-  /// Viene incrementato (0,1,2,...) e qui lo intercettiamo.
-  final ValueListenable<int>? closeSignal;
+  final ValueChanged<DateTime> onOpenSessionMenu;
 
   @override
   State<MyPathScreen> createState() => _MyPathScreenState();
@@ -33,275 +24,34 @@ class _MyPathScreenState extends State<MyPathScreen> {
   Timer? _clock;
   DateTime _now = DateTime.now();
 
-  // Persistent draggable sheet that can be opened by dragging up from anywhere.
-  static const double _minSheet = 0.001;
-
-  final _stackKey = GlobalKey();
-  final _ctaMeasureKey = GlobalKey();
-  final DraggableScrollableController _sheetCtrl =
-      DraggableScrollableController();
-  final ValueNotifier<double> _sheetExtent = ValueNotifier<double>(_minSheet);
-
-  double _maxSheet = 0.72;
-  double _layoutHeight = 0.0;
-  double _reservedBottom = 0.0;
-  double _sheetAreaHeight = 1.0;
-
-  bool _bgDragActive = false;
-  bool _lastReportedOpen = false;
-  int _closeSeq = 0;
-
-  void _reportOpen(bool open) {
-    if (widget.onFocusMenuOpenChanged == null) return;
-    if (_lastReportedOpen == open) return;
-    _lastReportedOpen = open;
-    widget.onFocusMenuOpenChanged!(open);
-  }
-
   @override
   void initState() {
     super.initState();
-
     _clock = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
-
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _recomputeMaxChildSize(),
-    );
-
-    if (widget.closeSignal != null) {
-      _closeSeq = widget.closeSignal!.value;
-      widget.closeSignal!.addListener(_handleCloseSignal);
-    }
-  }
-
-  @override
-  void didUpdateWidget(covariant MyPathScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.closeSignal != widget.closeSignal) {
-      oldWidget.closeSignal?.removeListener(_handleCloseSignal);
-      if (widget.closeSignal != null) {
-        _closeSeq = widget.closeSignal!.value;
-        widget.closeSignal!.addListener(_handleCloseSignal);
-      }
-    }
-  }
-
-  void _handleCloseSignal() {
-    final sig = widget.closeSignal;
-    if (sig == null) return;
-    final v = sig.value;
-    if (v == _closeSeq) return;
-    _closeSeq = v;
-    _closeSheet();
   }
 
   @override
   void dispose() {
-    widget.closeSignal?.removeListener(_handleCloseSignal);
-    // Garantisce che la shell venga sbloccata se la pagina viene smontata.
-    _reportOpen(false);
     _clock?.cancel();
-    _sheetCtrl.dispose();
-    _sheetExtent.dispose();
     super.dispose();
   }
-
-  void _recomputeMaxChildSize() {
-    final stackCtx = _stackKey.currentContext;
-    final ctaCtx = _ctaMeasureKey.currentContext;
-    if (stackCtx == null || ctaCtx == null) return;
-
-    final stackBox = stackCtx.findRenderObject() as RenderBox?;
-    final ctaBox = ctaCtx.findRenderObject() as RenderBox?;
-    if (stackBox == null || ctaBox == null) return;
-    if (!stackBox.hasSize || !ctaBox.hasSize) return;
-
-    final stackTopLeft = stackBox.localToGlobal(Offset.zero);
-    final ctaTopLeft = ctaBox.localToGlobal(Offset.zero);
-
-    final ctaBottomInStack =
-        (ctaTopLeft.dy - stackTopLeft.dy) + ctaBox.size.height;
-
-    // We want the sheet to fill the whole bottom area: from below CTA down to the top of the navbar.
-    const gapUnderCta = 12.0;
-    final sheetAreaHeight =
-        (stackBox.size.height - _reservedBottom).clamp(1.0, stackBox.size.height);
-    final available = (sheetAreaHeight - (ctaBottomInStack + gapUnderCta))
-        .clamp(220.0, sheetAreaHeight);
-
-    final max = (available / sheetAreaHeight).clamp(0.30, 0.95);
-
-    if ((max - _maxSheet).abs() > 0.01) {
-      setState(() => _maxSheet = max);
-
-      // If currently above the new max, clamp it.
-      if (_sheetExtent.value > max + 0.001) {
-        _sheetCtrl.animateTo(
-          max,
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-        );
-      }
-    }
-  }
-
-  void _openSheet({bool animate = true}) {
-    // Blocca subito la shell (swipe, navbar, drawer...).
-    _reportOpen(true);
-    final target = _maxSheet;
-    if (animate) {
-      _sheetCtrl.animateTo(
-        target,
-        duration: const Duration(milliseconds: 320),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
-      _sheetCtrl.jumpTo(target);
-    }
-  }
-
-  void _closeSheet({bool animate = true}) {
-    if (animate) {
-      _sheetCtrl.animateTo(
-        _minSheet,
-        duration: const Duration(milliseconds: 260),
-        curve: Curves.easeOutCubic,
-      );
-    } else {
-      _sheetCtrl.jumpTo(_minSheet);
-    }
-  }
-
-  bool get _isSheetOpen => _sheetExtent.value > (_minSheet + 0.02);
 
   @override
   Widget build(BuildContext context) {
     final palette = _DayPalette.fromNow(_now);
 
-    // Area “riservata” alla navbar + safe area: il menu deve fermarsi sopra.
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    const shellPad =
-        PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
-    _reservedBottom = safeBottom + shellPad;
-
-    // Keep max height in sync even if layout changes.
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => _recomputeMaxChildSize(),
-    );
-
-    return LayoutBuilder(
-      builder: (context, c) {
-        _layoutHeight = c.maxHeight;
-        _sheetAreaHeight = math.max(1.0, _layoutHeight - _reservedBottom);
-
-        return Stack(
-          key: _stackKey,
-          children: [
-            // BACKGROUND + CTA (and swipe-up-anywhere to open)
-            GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onVerticalDragStart: (_) {
-                // Only allow "open" drag when the sheet is closed.
-                if (_isSheetOpen) return;
-                _bgDragActive = true;
-              },
-              onVerticalDragUpdate: (d) {
-                if (!_bgDragActive) return;
-
-                // Convert pixels to sheet size fraction.
-                final delta = (-d.delta.dy) / math.max(1.0, _sheetAreaHeight);
-                final next = (_sheetExtent.value + delta).clamp(
-                  _minSheet,
-                  _maxSheet,
-                );
-
-                _sheetCtrl.jumpTo(next);
-              },
-              onVerticalDragEnd: (d) {
-                if (!_bgDragActive) return;
-                _bgDragActive = false;
-
-                final v = d.primaryVelocity ?? 0.0; // +down, -up
-                final mid = (_minSheet + _maxSheet) * 0.55;
-
-                if (v < -650) {
-                  _openSheet();
-                } else if (v > 650) {
-                  _closeSheet();
-                } else {
-                  if (_sheetExtent.value >= mid) {
-                    _openSheet();
-                  } else {
-                    _closeSheet();
-                  }
-                }
-              },
-              onVerticalDragCancel: () {
-                _bgDragActive = false;
-              },
-              child: Align(
-                alignment: const Alignment(0, 0),
-                child: KeyedSubtree(
-                  key: _ctaMeasureKey,
-                  child: _FocusCTA(palette: palette, onTap: () => _openSheet()),
-                ),
-              ),
-            ),
-
-            // BACKDROP (tap to close)
-            ValueListenableBuilder<double>(
-              valueListenable: _sheetExtent,
-              builder: (_, extent, child) {
-                final t = ((extent - _minSheet) / (_maxSheet - _minSheet))
-                    .clamp(0.0, 1.0);
-
-                return IgnorePointer(
-                  ignoring: t <= 0.01,
-                  child: GestureDetector(
-                    onTap: () => _closeSheet(),
-                    child: AnimatedOpacity(
-                      opacity: t * 0.35,
-                      duration: const Duration(milliseconds: 120),
-                      curve: Curves.easeOut,
-                      child: Container(color: Colors.black),
-                    ),
-                  ),
-                );
-              },
-              child: const SizedBox.shrink(),
-            ),
-
-            // SHEET
-            Positioned.fill(
-              bottom: _reservedBottom,
-              child: NotificationListener<DraggableScrollableNotification>(
-                onNotification: (n) {
-                  _sheetExtent.value = n.extent;
-                  _reportOpen(_isSheetOpen);
-                  return false;
-                },
-                child: DraggableScrollableSheet(
-                  controller: _sheetCtrl,
-                  minChildSize: _minSheet,
-                  initialChildSize: _minSheet,
-                  maxChildSize: _maxSheet,
-                  builder: (context, scrollController) {
-                    // We want only two "rest" positions: closed and fully open.
-                    // Snap to open is handled by our animateTo on drag end.
-                    return _SessionStartSheet(
-                      now: _now,
-                      onClose: () => _closeSheet(),
-                      scrollController: scrollController,
-                    );
-                  },
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+    return Stack(
+      children: [
+        Align(
+          alignment: const Alignment(0, 0),
+          child: _FocusCTA(
+            palette: palette,
+            onTap: () => widget.onOpenSessionMenu(_now),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -385,7 +135,6 @@ class _FocusCTAState extends State<_FocusCTA> {
   }
 }
 
-/// CTA glass + click sheen/ripple
 class _CtaButton extends StatefulWidget {
   const _CtaButton({super.key, required this.diameter, required this.palette});
 
@@ -665,7 +414,6 @@ class _GlassRingPainter extends CustomPainter {
       oldDelegate.pulse != pulse || oldDelegate.glow != glow;
 }
 
-/// === BLOB (lascio i TUOI valori) ===
 class _DancingBlob extends StatefulWidget {
   const _DancingBlob({required this.diameter, required this.palette});
 
@@ -862,27 +610,23 @@ class _DayPalette {
   }
 }
 
-/// ======================
-/// BOTTOM SHEET APPLE STYLE
-/// ======================
 enum _StartMode { timer, stopwatch }
 
-class _SessionStartSheet extends StatefulWidget {
-  const _SessionStartSheet({
+class SessionStartSheet extends StatefulWidget {
+  const SessionStartSheet({
+    super.key,
     required this.now,
     required this.onClose,
-    required this.scrollController,
   });
 
   final DateTime now;
   final VoidCallback onClose;
-  final ScrollController scrollController;
 
   @override
-  State<_SessionStartSheet> createState() => _SessionStartSheetState();
+  State<SessionStartSheet> createState() => _SessionStartSheetState();
 }
 
-class _SessionStartSheetState extends State<_SessionStartSheet> {
+class _SessionStartSheetState extends State<SessionStartSheet> {
   _StartMode _mode = _StartMode.timer;
 
   final List<int> _timerMinutes = const [1, 10, 15, 20, 25, 30, 40, 50, 60];
@@ -939,8 +683,9 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
   void _startTimer() {
     final minutes = _timerMinutes[_timerIndex];
+    final nav = Navigator.of(context);
     widget.onClose();
-    Navigator.of(context).push(
+    nav.push(
       MaterialPageRoute(
         builder: (_) => FocusSessionScreen(
           type: FocusSessionType.timer,
@@ -952,12 +697,12 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
   }
 
   void _startStopwatch() {
+    final nav = Navigator.of(context);
     widget.onClose();
-    Navigator.of(context).push(
+    nav.push(
       MaterialPageRoute(
         builder: (_) => const FocusSessionScreen(
           type: FocusSessionType.stopwatch,
-          // Qui “duration” è il CAP (max ricompensa = 60 min)
           duration: Duration(minutes: 60),
           displayMode: FocusDisplayMode.fullscreen,
         ),
@@ -967,193 +712,144 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
 
   @override
   Widget build(BuildContext context) {
-    const bottom = 12.0;
     final (band, mult) = _bandNow();
     final bandText = mult > 1.0
         ? 'Bonus ${_bandLabel(band)} +${((mult - 1) * 100).round()}%'
         : _bandLabel(band);
 
-    return SafeArea(
-      top: false,
-      bottom: false,
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 12,
-          right: 12,
-          bottom: bottom,
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    const Color(0xFF1B2530).withValues(alpha: 0.78),
-                    const Color(0xFF0F1217).withValues(alpha: 0.86),
-                  ],
-                ),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+    final r = BorderRadius.circular(38);
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: r,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.45),
+            blurRadius: 36,
+            spreadRadius: -4,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: r,
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: r,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  const Color(0xFF1E2A38).withValues(alpha: 0.88),
+                  const Color(0xFF0F1217).withValues(alpha: 0.94),
+                ],
               ),
-              child: ListView(
-                controller: widget.scrollController,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.16),
+                width: 1.4,
+                strokeAlign: BorderSide.strokeAlignInside, // ✅ Evita clipping angoli
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Container(
-                    width: 46,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.20),
-                      borderRadius: BorderRadius.circular(99),
+                  Center(
+                    child: Container(
+                      width: 42,
+                      height: 4.5,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.25),
+                        borderRadius: BorderRadius.circular(99),
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
                   Row(
                     children: [
                       const Text(
                         'Avvia sessione',
                         style: TextStyle(
                           color: Colors.white,
-                          fontSize: 18.5,
+                          fontSize: 19,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
+                          letterSpacing: -0.2,
                         ),
                       ),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 6,
+                          vertical: 5,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(999),
+                          borderRadius: BorderRadius.circular(99),
                           border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.10),
+                            color: Colors.white.withValues(alpha: 0.12),
                           ),
                         ),
                         child: Text(
                           bandText,
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.86),
-                            fontSize: 12.5,
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-
-                  // Segmented control (glass)
+                  const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
+                      color: Colors.black.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.10),
+                        color: Colors.white.withValues(alpha: 0.08),
                       ),
                     ),
                     child: CupertinoSlidingSegmentedControl<_StartMode>(
                       groupValue: _mode,
                       backgroundColor: Colors.transparent,
-                      thumbColor: Colors.white.withValues(alpha: 0.12),
+                      thumbColor: Colors.white.withValues(alpha: 0.14),
                       onValueChanged: (v) => _setMode(v ?? _StartMode.timer),
                       children: const {
                         _StartMode.timer: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
+                          padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text(
                             'Timer',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
+                              fontSize: 14.5,
                             ),
                           ),
                         ),
                         _StartMode.stopwatch: Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 8,
-                          ),
+                          padding: EdgeInsets.symmetric(vertical: 8),
                           child: Text(
                             'Cronometro',
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w900,
+                              fontSize: 14.5,
                             ),
                           ),
                         ),
                       },
                     ),
                   ),
-
-                  const SizedBox(height: 14),
-
-                  SizedBox(
-                    height:
-                        240, // ✅ altezza fissa = niente “salti” tra Timer e Cronometro
+                  const SizedBox(height: 16),
+                  Expanded(
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 340),
-                      reverseDuration: const Duration(milliseconds: 300),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-
-                      // ✅ overlay stabile (evita micro-resize durante lo switch)
-                      layoutBuilder: (currentChild, previousChildren) {
-                        return Stack(
-                          alignment: Alignment.topCenter,
-                          children: <Widget>[
-                            ...previousChildren,
-                            // ignore: use_null_aware_elements
-                            if (currentChild != null) currentChild,
-                          ],
-                        );
-                      },
-
-                      // ✅ direzione “per tab”: Timer↔sinistra, Cronometro↔destra
-                      // ✅ e in uscita ognuno esce verso il SUO lato (non più stessa direzione)
-                      transitionBuilder: (child, anim) {
-                        final isTimer = child.key == const ValueKey('timer');
-                        final side = isTimer ? -1.0 : 1.0;
-
-                        final curved = CurvedAnimation(
-                          parent: anim,
-                          curve: Curves.easeOutCubic,
-                          reverseCurve: Curves.easeInCubic,
-                        );
-
-                        final isExiting =
-                            anim.status == AnimationStatus.reverse;
-
-                        final slide = isExiting
-                            ? Tween<Offset>(
-                                begin: Offset.zero,
-                                end: Offset(
-                                  0.14 * side,
-                                  0,
-                                ), // esce verso il suo lato
-                              ).animate(ReverseAnimation(curved))
-                            : Tween<Offset>(
-                                begin: Offset(
-                                  0.14 * side,
-                                  0,
-                                ), // entra dal suo lato
-                                end: Offset.zero,
-                              ).animate(curved);
-
-                        return FadeTransition(
-                          opacity: curved,
-                          child: SlideTransition(position: slide, child: child),
-                        );
-                      },
-
+                      duration: const Duration(milliseconds: 350),
+                      switchInCurve: Curves.easeOutQuart,
+                      switchOutCurve: Curves.easeInQuart,
                       child: (_mode == _StartMode.timer)
                           ? _TimerPanel(
                               key: const ValueKey('timer'),
@@ -1163,29 +859,32 @@ class _SessionStartSheetState extends State<_SessionStartSheet> {
                               onChanged: (i) => setState(() => _timerIndex = i),
                               estimateCoins: _estimateTimerCoins,
                             )
-                          : const _StopwatchPanel(key: ValueKey('stopwatch')),
+                          : const _StopwatchPanel(
+                              key: ValueKey('stopwatch'),
+                            ),
                     ),
                   ),
-
-                  const SizedBox(height: 14),
-
-                  // CTA bottom
+                  const SizedBox(height: 16),
                   _GlassPrimaryButton(
                     label: _mode == _StartMode.timer
-                        ? 'Avvia timer'
-                        : 'Avvia cronometro',
+                        ? 'Inizia Sessione'
+                        : 'Avvia Cronometro',
                     onTap: _mode == _StartMode.timer
                         ? _startTimer
                         : _startStopwatch,
                   ),
-
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   TextButton(
                     onPressed: widget.onClose,
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(0, 40),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                     child: Text(
                       'Annulla',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.75),
+                        color: Colors.white.withValues(alpha: 0.6),
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -1223,39 +922,39 @@ class _TimerPanel extends StatelessWidget {
     return Column(
       key: key,
       children: [
-        Text(
-          'Seleziona durata',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.86),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(18),
+        Expanded(
           child: Container(
-            height: 160,
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+              color: Colors.black.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
             ),
             child: CupertinoPicker(
               scrollController: controller,
-              itemExtent: 44,
-              magnification: 1.12,
-              squeeze: 1.06,
+              itemExtent: 46,
+              magnification: 1.15,
+              squeeze: 1.0,
               useMagnifier: true,
               onSelectedItemChanged: onChanged,
+              selectionOverlay: Container(
+                decoration: BoxDecoration(
+                  border: Border.symmetric(
+                    horizontal: BorderSide(
+                      color: Colors.white.withValues(alpha: 0.1),
+                      width: 0.5,
+                    ),
+                  ),
+                ),
+              ),
               children: minutes.map((m) {
-                final label = (m == 1) ? '1 minuto (beta)' : '$m minuti';
+                final label = (m == 1) ? '1 minuto' : '$m minuti';
                 return Center(
                   child: Text(
                     label,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 );
@@ -1263,12 +962,27 @@ class _TimerPanel extends StatelessWidget {
             ),
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          'Ricompensa stimata: +$coins monete (max a 60 min)',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.80),
-            fontWeight: FontWeight.w800,
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.stars_rounded, size: 16, color: Colors.amber.withValues(alpha: 0.9)),
+              const SizedBox(width: 8),
+              Text(
+                'Premio stimato: +$coins monete',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.85),
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -1281,52 +995,67 @@ class _StopwatchPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Container(
       key: key,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.timer_outlined,
+            size: 40,
+            color: Colors.white.withValues(alpha: 0.3),
+          ),
+          const SizedBox(height: 16),
+          _StopwatchInfoLine(
+            icon: Icons.check_circle_outline_rounded,
+            text: 'Soglia minima: 15 minuti',
+          ),
+          const SizedBox(height: 10),
+          _StopwatchInfoLine(
+            icon: Icons.add_chart_rounded,
+            text: '2 monete/min fino a 60 min',
+          ),
+          const SizedBox(height: 10),
+          _StopwatchInfoLine(
+            icon: Icons.info_outline_rounded,
+            text: 'Nessun limite oltre i 60 min',
+            isDim: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StopwatchInfoLine extends StatelessWidget {
+  const _StopwatchInfoLine({
+    required this.icon,
+    required this.text,
+    this.isDim = false,
+  });
+  final IconData icon;
+  final String text;
+  final bool isDim;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        Icon(icon, size: 16, color: Colors.white.withValues(alpha: isDim ? 0.4 : 0.7)),
+        const SizedBox(width: 10),
         Text(
-          'Ora sei in Cronometro',
+          text,
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.92),
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '• Soglia minima: 15 minuti',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.90),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '• Ricompensa: 2 monete/min (fino a 60 min)',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.90),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                '• Oltre 60 min: continui, ma la ricompensa resta “cap”',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.78),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+            color: Colors.white.withValues(alpha: isDim ? 0.5 : 0.9),
+            fontSize: 14,
+            fontWeight: isDim ? FontWeight.w600 : FontWeight.w800,
           ),
         ),
       ],
@@ -1344,19 +1073,24 @@ class _GlassPrimaryButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(22),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Colors.white.withValues(alpha: 0.10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.16)),
+          borderRadius: BorderRadius.circular(22),
+          gradient: LinearGradient(
+            colors: [
+              Colors.white.withValues(alpha: 0.15),
+              Colors.white.withValues(alpha: 0.08),
+            ],
+          ),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 22,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(alpha: 0.25),
+              blurRadius: 15,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -1366,7 +1100,8 @@ class _GlassPrimaryButton extends StatelessWidget {
             style: const TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,
-              fontSize: 15.5,
+              fontSize: 16,
+              letterSpacing: 0.5,
             ),
           ),
         ),
