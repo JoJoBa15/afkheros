@@ -32,7 +32,7 @@ class _RootShellState extends State<RootShell>
   DateTime _sessionMenuNow = DateTime.now();
 
   static const double _contentBottomPad =
-      PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 26;
+      PixelBottomNavBar.barHeight + PixelBottomNavBar.centerLift + 10;
 
   @override
   void initState() {
@@ -43,8 +43,8 @@ class _RootShellState extends State<RootShell>
 
     _sessionMenuCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 400),
-      reverseDuration: const Duration(milliseconds: 350),
+      duration: const Duration(milliseconds: 350),
+      reverseDuration: const Duration(milliseconds: 300),
     );
   }
 
@@ -73,7 +73,7 @@ class _RootShellState extends State<RootShell>
   void _handleSessionDragUpdate(DragUpdateDetails details) {
     final h = MediaQuery.of(context).size.height * 0.54;
     
-    if (!_sessionMenuActive && details.delta.dy < -5) {
+    if (!_sessionMenuActive && details.delta.dy < -2) {
       _sessionMenuNow = DateTime.now();
       setState(() => _sessionMenuActive = true);
       _sessionMenuCtrl.value = 0;
@@ -88,7 +88,15 @@ class _RootShellState extends State<RootShell>
     if (!_sessionMenuActive) return;
     
     final velocity = details.primaryVelocity ?? 0;
-    if (velocity < -400 || _sessionMenuCtrl.value > 0.5) {
+    if (velocity < -200) {
+      _sessionMenuCtrl.forward();
+      return;
+    }
+    if (velocity > 200) {
+      _closeSessionMenu();
+      return;
+    }
+    if (_sessionMenuCtrl.value > 0.3) {
       _sessionMenuCtrl.forward();
     } else {
       _closeSessionMenu();
@@ -109,8 +117,8 @@ class _RootShellState extends State<RootShell>
     HapticFeedback.selectionClick();
     _pageController.animateToPage(
       i,
-      duration: const Duration(milliseconds: 520),
-      curve: Curves.easeOutCubic,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutExpo,
     );
   }
 
@@ -163,8 +171,7 @@ class _RootShellState extends State<RootShell>
           builder: (context, _) {
             final page = _currentPage();
             final distMyPath01 = (page - 2.0).abs().clamp(0.0, 1.0);
-            final bgDimming = 0.42 * distMyPath01;
-            final glassT = distMyPath01;
+            final bgDimming = 0.65 * distMyPath01;
 
             return Stack(
               children: [
@@ -175,25 +182,6 @@ class _RootShellState extends State<RootShell>
                   ),
                 ),
                 
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.bottomCenter,
-                          end: Alignment.center,
-                          colors: [
-                            Colors.black.withValues(
-                              alpha: (0.10 + 0.16 * distMyPath01).clamp(0.0, 1.0),
-                            ),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-
                 Positioned.fill(
                   child: NotificationListener<ScrollNotification>(
                     onNotification: (n) {
@@ -213,10 +201,10 @@ class _RootShellState extends State<RootShell>
                       onPageChanged: (i) => setState(() => _index = i),
                       itemBuilder: (context, i) {
                         final delta = (page - i).abs().clamp(0.0, 1.0);
-                        final scaleY = 1.0 - (0.018 * delta);
-                        final lift = 6.0 * delta;
+                        final scaleY = 1.0 - (0.012 * delta);
+                        final lift = 3.0 * delta;
 
-                        final Widget raw = switch (i) {
+                        final Widget pageChild = switch (i) {
                           0 => const ShopScreen(),
                           1 => const BlacksmithScreen(),
                           2 => GestureDetector(
@@ -230,17 +218,19 @@ class _RootShellState extends State<RootShell>
                           _ => const SizedBox.shrink(),
                         };
 
-                        final Widget pageChild = (i == 2)
-                            ? raw
-                            : _ShellContent(glassT: glassT, child: raw);
-
                         return _KeepAlive(
                           child: Transform(
                             alignment: Alignment.center,
                             transform: Matrix4.identity()
                               ..translateByDouble(0.0, lift, 0.0, 1.0)
                               ..scaleByDouble(1.0, scaleY, 1.0, 1.0),
-                            child: pageChild,
+                            child: Padding(
+                              padding: const EdgeInsets.only(
+                                top: AfkShellAppBar.kHeight,
+                                bottom: _contentBottomPad,
+                              ),
+                              child: pageChild,
+                            ),
                           ),
                         );
                       },
@@ -328,6 +318,8 @@ class _SessionMenuOverlay extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: () => onClose(),
+                onVerticalDragUpdate: onDragUpdate,
+                onVerticalDragEnd: onDragEnd,
                 child: BackdropFilter(
                   filter: ImageFilter.blur(sigmaX: 8.0 * t, sigmaY: 8.0 * t),
                   child: Container(
@@ -349,7 +341,7 @@ class _SessionMenuOverlay extends StatelessWidget {
                     height: sheetH,
                     child: SessionStartSheet(
                       now: now,
-                      onClose: () => onClose(),
+                      onClose: onClose,
                     ),
                   ),
                 ),
@@ -358,55 +350,6 @@ class _SessionMenuOverlay extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _ShellContent extends StatelessWidget {
-  const _ShellContent({required this.child, required this.glassT});
-  final Widget child;
-  final double glassT;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        top: AfkShellAppBar.kHeight,
-        bottom: _RootShellState._contentBottomPad,
-      ),
-      child: _ContentGlass(t: glassT, child: child),
-    );
-  }
-}
-
-class _ContentGlass extends StatelessWidget {
-  const _ContentGlass({required this.child, required this.t});
-  final Widget child;
-  final double t;
-
-  @override
-  Widget build(BuildContext context) {
-    if (t <= 0.001) return child;
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: IgnorePointer(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withValues(alpha: 0.06 * t),
-                    Colors.black.withValues(alpha: 0.14 * t),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-        child,
-      ],
     );
   }
 }

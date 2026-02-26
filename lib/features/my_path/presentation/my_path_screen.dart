@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'focus_session_screen.dart';
 import '../../../state/settings_state.dart';
@@ -40,14 +41,11 @@ class _MyPathScreenState extends State<MyPathScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _DayPalette.fromNow(_now);
-
     return Stack(
       children: [
         Align(
           alignment: const Alignment(0, 0),
-          child: _FocusCTA(
-            palette: palette,
+          child: _ZenCoreCTA(
             onTap: () => widget.onOpenSessionMenu(_now),
           ),
         ),
@@ -56,310 +54,122 @@ class _MyPathScreenState extends State<MyPathScreen> {
   }
 }
 
-class _FocusCTA extends StatefulWidget {
-  const _FocusCTA({required this.palette, required this.onTap});
-
-  final _DayPalette palette;
+class _ZenCoreCTA extends StatefulWidget {
   final VoidCallback onTap;
+  const _ZenCoreCTA({required this.onTap});
 
   @override
-  State<_FocusCTA> createState() => _FocusCTAState();
+  State<_ZenCoreCTA> createState() => _ZenCoreCTAState();
 }
 
-class _FocusCTAState extends State<_FocusCTA> {
-  bool _down = false;
-
-  final _ctaKey = GlobalKey<_CtaButtonState>();
-  Offset _tap01 = const Offset(0.5, 0.5);
-  bool _opening = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final diameter = math.min(size.width, size.height) * 0.44;
-
-    return GestureDetector(
-      onTapDown: (d) {
-        setState(() => _down = true);
-        final p = d.localPosition;
-        final dx = (p.dx / diameter).clamp(0.0, 1.0);
-        final dy = (p.dy / diameter).clamp(0.0, 1.0);
-        _tap01 = Offset(dx, dy);
-      },
-      onTapCancel: () => setState(() => _down = false),
-      onTapUp: (_) => setState(() => _down = false),
-      onTap: () {
-        if (_opening) return;
-        _opening = true;
-
-        _ctaKey.currentState?.playClick(_tap01);
-
-        Future.delayed(const Duration(milliseconds: 120), () {
-          if (!mounted) return;
-          widget.onTap();
-          _opening = false;
-        });
-      },
-      child: AnimatedScale(
-        scale: _down ? 0.985 : 1.0,
-        duration: const Duration(milliseconds: 140),
-        curve: Curves.easeOut,
-        child: SizedBox(
-          width: diameter,
-          height: diameter,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: [
-              OverflowBox(
-                alignment: Alignment.center,
-                minWidth: 0,
-                minHeight: 0,
-                maxWidth: double.infinity,
-                maxHeight: double.infinity,
-                child: _DancingBlob(
-                  diameter: diameter,
-                  palette: widget.palette,
-                ),
-              ),
-              _CtaButton(
-                key: _ctaKey,
-                diameter: diameter,
-                palette: widget.palette,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CtaButton extends StatefulWidget {
-  const _CtaButton({super.key, required this.diameter, required this.palette});
-
-  final double diameter;
-  final _DayPalette palette;
-
-  @override
-  State<_CtaButton> createState() => _CtaButtonState();
-}
-
-class _CtaButtonState extends State<_CtaButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _click;
-  Offset _tap01 = const Offset(0.5, 0.5);
+class _ZenCoreCTAState extends State<_ZenCoreCTA> with TickerProviderStateMixin {
+  late final AnimationController _breathCtrl;
+  late final AnimationController _rotationCtrl;
+  late final AnimationController _shockwaveCtrl;
+  bool _isDown = false;
 
   @override
   void initState() {
     super.initState();
-    _click = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 680),
-    );
+    _breathCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 8))..repeat(reverse: true);
+    _rotationCtrl = AnimationController(vsync: this, duration: const Duration(seconds: 12))..repeat();
+    _shockwaveCtrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 800));
   }
 
   @override
   void dispose() {
-    _click.dispose();
+    _breathCtrl.dispose();
+    _rotationCtrl.dispose();
+    _shockwaveCtrl.dispose();
     super.dispose();
   }
 
-  void playClick(Offset tap01) {
-    _tap01 = tap01;
-    _click.forward(from: 0);
+  void _handleTap() {
+    _shockwaveCtrl.forward(from: 0);
+    HapticFeedback.mediumImpact();
+    Future.delayed(const Duration(milliseconds: 150), widget.onTap);
   }
 
   @override
   Widget build(BuildContext context) {
-    final d = widget.diameter;
+    final size = MediaQuery.of(context).size;
+    final diameter = math.min(size.width, size.height) * 0.48;
 
-    final iconSize = (d * 0.20).clamp(34.0, 46.0);
-    final titleSize = (d * 0.17).clamp(22.0, 28.0);
-    final subSize = (d * 0.09).clamp(12.0, 15.0);
-
-    return RepaintBoundary(
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isDown = true),
+      onTapUp: (_) => setState(() => _isDown = false),
+      onTapCancel: () => setState(() => _isDown = false),
+      onTap: _handleTap,
       child: AnimatedBuilder(
-        animation: _click,
-        builder: (_, _) {
-          final t = Curves.easeInOutCubic.transform(_click.value);
+        animation: Listenable.merge([_breathCtrl, _rotationCtrl, _shockwaveCtrl]),
+        builder: (context, _) {
+          final breath = Curves.easeInOutSine.transform(_breathCtrl.value);
+          final shock = _shockwaveCtrl.value;
+          final scale = (1.0 + (breath * 0.04)) * (_isDown ? 0.92 : 1.0);
 
-          final sheenX = lerpDouble(-d * 0.95, d * 0.95, t)!;
-          final sheenOpacity = (math.sin(
-            math.pi * _click.value,
-          )).clamp(0.0, 1.0);
-
-          final rippleScale = lerpDouble(
-            0.15,
-            1.55,
-            Curves.easeOutCubic.transform(_click.value),
-          )!;
-          final rippleOpacity = lerpDouble(
-            0.28,
-            0.0,
-            Curves.easeOut.transform(_click.value),
-          )!;
-
-          final ring = (math.sin(math.pi * _click.value)).clamp(0.0, 1.0);
-
-          return Container(
-            width: d,
-            height: d,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: widget.palette.cta,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.26),
-                  blurRadius: 28,
-                  offset: const Offset(0, 18),
-                ),
-                BoxShadow(
-                  blurRadius: 40,
-                  spreadRadius: 2,
-                  color: widget.palette.glow.withValues(alpha: 0.22),
-                  offset: const Offset(0, 14),
-                ),
-              ],
-            ),
-            child: ClipOval(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
-                    child: Container(
-                      color: Colors.white.withValues(alpha: 0.06),
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: const Alignment(-0.55, -0.65),
-                        radius: 1.15,
-                        colors: [
-                          Colors.white.withValues(alpha: 0.24),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.62],
-                      ),
-                    ),
-                  ),
-                  Container(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: const Alignment(0.75, 0.85),
-                        radius: 1.05,
-                        colors: [
-                          Colors.black.withValues(alpha: 0.18),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.70],
-                      ),
-                    ),
-                  ),
-                  if (_click.value > 0)
-                    Align(
-                      alignment: Alignment(
-                        _tap01.dx * 2 - 1,
-                        _tap01.dy * 2 - 1,
-                      ),
-                      child: ImageFiltered(
-                        imageFilter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-                        child: Transform.scale(
-                          scale: rippleScale,
-                          child: Container(
-                            width: d * 0.55,
-                            height: d * 0.55,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: RadialGradient(
-                                colors: [
-                                  Colors.white.withValues(alpha: rippleOpacity),
-                                  Colors.transparent,
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_click.value > 0)
-                    Opacity(
-                      opacity: 0.85 * sheenOpacity,
-                      child: Transform.translate(
-                        offset: Offset(sheenX, 0),
-                        child: Transform.rotate(
-                          angle: -0.55,
-                          child: ImageFiltered(
-                            imageFilter: ImageFilter.blur(
-                              sigmaX: 10,
-                              sigmaY: 10,
-                            ),
-                            child: Container(
-                              width: d * 0.55,
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.white.withValues(alpha: 0.35),
-                                    Colors.transparent,
-                                  ],
-                                  stops: const [0.0, 0.5, 1.0],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
+          return SizedBox(
+            width: diameter * 1.5,
+            height: diameter * 1.5,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (shock > 0 && shock < 1)
                   CustomPaint(
-                    painter: _GlassRingPainter(
-                      pulse: ring,
-                      glow: widget.palette.glow,
+                    painter: _ShockwavePainter(progress: shock, color: Colors.white),
+                    size: Size(diameter * 1.4, diameter * 1.4),
+                  ),
+                Container(
+                  width: diameter * 1.1,
+                  height: diameter * 1.1,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [Colors.white.withValues(alpha: 0.12 + (breath * 0.08)), Colors.transparent],
                     ),
                   ),
-                  Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.bolt_rounded,
-                          size: iconSize,
-                          color: Colors.white.withValues(alpha: 0.96),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Concentrati!',
-                          textScaler: const TextScaler.linear(1.0),
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: titleSize,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 0),
-                        Text(
-                          'Tocca per iniziare',
-                          textScaler: const TextScaler.linear(1.0),
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.84),
-                            fontSize: subSize,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
+                ),
+                Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    width: diameter,
+                    height: diameter,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: Colors.black.withValues(alpha: 0.3), blurRadius: 30, offset: const Offset(0, 15)),
                       ],
                     ),
+                    child: ClipOval(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                        child: CustomPaint(
+                          painter: _ZenCorePainter(breath: breath, rotation: _rotationCtrl.value),
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.bolt_rounded, size: diameter * 0.22, color: Colors.white.withValues(alpha: 0.9)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'FOCUS',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: diameter * 0.14,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.0,
+                                    shadows: [Shadow(color: Colors.cyanAccent.withValues(alpha: 0.5), blurRadius: 10)],
+                                  ),
+                                ),
+                                Text('Tocca per iniziare', style: TextStyle(color: Colors.white38, fontSize: diameter * 0.07, fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           );
         },
@@ -368,290 +178,68 @@ class _CtaButtonState extends State<_CtaButton>
   }
 }
 
-class _GlassRingPainter extends CustomPainter {
-  _GlassRingPainter({required this.pulse, required this.glow});
-  final double pulse;
-  final Color glow;
-
+class _ZenCorePainter extends CustomPainter {
+  final double breath;
+  final double rotation;
+  _ZenCorePainter({required this.breath, required this.rotation});
   @override
   void paint(Canvas canvas, Size size) {
-    final r = size.width / 2;
-    final rect = Rect.fromCircle(center: Offset(r, r), radius: r);
-
-    final rimPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.25
-      ..shader = SweepGradient(
-        colors: [
-          Colors.white.withValues(alpha: 0.42),
-          Colors.white.withValues(alpha: 0.08),
-          Colors.white.withValues(alpha: 0.30),
-          Colors.white.withValues(alpha: 0.10),
-          Colors.white.withValues(alpha: 0.42),
-        ],
-        stops: const [0.0, 0.28, 0.55, 0.78, 1.0],
-      ).createShader(rect);
-
-    canvas.drawCircle(Offset(r, r), r - 0.9, rimPaint);
-
-    if (pulse > 0) {
-      final p = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = glow.withValues(alpha: 0.18 * pulse);
-      canvas.drawCircle(Offset(r, r), r - 1.4, p);
-    }
-
-    final inner = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 100.0
-      ..color = const Color.fromARGB(255, 15, 168, 150).withValues(alpha: 0.05);
-    canvas.drawCircle(Offset(r, r), r * 0.78, inner);
+    final rect = Offset.zero & size;
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+    final bodyPaint = Paint()..shader = LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Colors.white.withValues(alpha: 0.15), Colors.white.withValues(alpha: 0.02)]).createShader(rect);
+    canvas.drawCircle(center, radius, bodyPaint);
+    final rimPaint = Paint()..style = PaintingStyle.stroke..strokeWidth = 2.5..shader = SweepGradient(transform: GradientRotation(rotation * math.pi * 2), colors: [Colors.transparent, Colors.white.withValues(alpha: 0.4 + (breath * 0.2)), Colors.transparent, Colors.white.withValues(alpha: 0.1), Colors.transparent], stops: const [0.0, 0.25, 0.5, 0.8, 1.0]).createShader(rect);
+    canvas.drawCircle(center, radius - 1.25, rimPaint);
+    final glossPaint = Paint()..shader = RadialGradient(center: const Alignment(-0.3, -0.4), radius: 0.6, colors: [Colors.white.withValues(alpha: 0.25), Colors.transparent]).createShader(rect);
+    canvas.drawCircle(center, radius, glossPaint);
   }
-
   @override
-  bool shouldRepaint(covariant _GlassRingPainter oldDelegate) =>
-      oldDelegate.pulse != pulse || oldDelegate.glow != glow;
+  bool shouldRepaint(covariant _ZenCorePainter old) => true;
 }
 
-class _DancingBlob extends StatefulWidget {
-  const _DancingBlob({required this.diameter, required this.palette});
-
-  final double diameter;
-  final _DayPalette palette;
-
+class _ShockwavePainter extends CustomPainter {
+  final double progress;
+  final Color color;
+  _ShockwavePainter({required this.progress, required this.color});
   @override
-  State<_DancingBlob> createState() => _DancingBlobState();
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (size.width / 2) * progress;
+    final opacity = (1.0 - progress).clamp(0.0, 1.0);
+    canvas.drawCircle(center, radius, Paint()..color = color.withValues(alpha: opacity * 0.3)..style = PaintingStyle.stroke..strokeWidth = 4.0);
+  }
+  @override
+  bool shouldRepaint(covariant _ShockwavePainter old) => old.progress != progress;
 }
 
-class _DancingBlobState extends State<_DancingBlob>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _c;
-  final _rnd = math.Random(77);
-
-  Offset _curOffset = Offset.zero;
-  Offset _targetOffset = Offset.zero;
-
-  double _curScale = 1.0;
-  double _targetScale = 1.0;
-
-  double _curBlur = 88.0;
-  double _targetBlur = 102.0;
-
-  @override
-  void initState() {
-    super.initState();
-    _c =
-        AnimationController(
-          vsync: this,
-          duration: const Duration(milliseconds: 9800),
-        )..addStatusListener((s) {
-          if (s == AnimationStatus.completed) {
-            _snapToTarget();
-            _pickNext();
-          }
-        });
-    _pickNext();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  void _snapToTarget() {
-    _curOffset = _targetOffset;
-    _curScale = _targetScale;
-    _curBlur = _targetBlur;
-  }
-
-  void _pickNext() {
-    final amp = widget.diameter * 0.15;
-    double rr(double min, double max) => min + _rnd.nextDouble() * (max - min);
-
-    _targetOffset = Offset(rr(-amp, amp), rr(-amp, amp));
-    _targetScale = rr(0.98, 1.06);
-    _targetBlur = rr(90, 112);
-
-    final ms = 8800 + _rnd.nextInt(5200);
-    _c.duration = Duration(milliseconds: ms.clamp(8000, 14000).toInt());
-    _c.forward(from: 0);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final outerSize = widget.diameter * 3.30;
-    final innerSize = widget.diameter * 1.85;
-
-    return IgnorePointer(
-      child: RepaintBoundary(
-        child: AnimatedBuilder(
-          animation: _c,
-          builder: (_, _) {
-            final tt = Curves.easeInOutCubic.transform(_c.value);
-            final o = Offset.lerp(_curOffset, _targetOffset, tt)!;
-            final s = lerpDouble(_curScale, _targetScale, tt)!;
-            final blur = lerpDouble(_curBlur, _targetBlur, tt)!;
-
-            return Transform.translate(
-              offset: o,
-              child: Transform.scale(
-                scale: s,
-                child: Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    ImageFiltered(
-                      imageFilter: ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-                      child: Container(
-                        width: outerSize,
-                        height: outerSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              widget.palette.glow.withValues(alpha: 0.36),
-                              widget.palette.cta.last.withValues(alpha: 0.18),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.62, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                    ImageFiltered(
-                      imageFilter: ImageFilter.blur(
-                        sigmaX: blur * 0.60,
-                        sigmaY: blur * 0.60,
-                      ),
-                      child: Container(
-                        width: innerSize,
-                        height: innerSize,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: RadialGradient(
-                            colors: [
-                              widget.palette.glow.withValues(alpha: 0.40),
-                              widget.palette.cta.first.withValues(alpha: 0.40),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.55, 1.0],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _DayPalette {
-  const _DayPalette({
-    required this.cta,
-    required this.glow,
-    required this.night,
-  });
-
-  final List<Color> cta;
-  final Color glow;
-  final double night;
-
-  static _DayPalette fromNow(DateTime now) {
-    final m = now.hour * 60 + now.minute;
-    final day01 = ((math.sin((m / 1440.0) * math.pi * 2 - math.pi / 2) + 1) / 2)
-        .clamp(0.0, 1.0);
-    final night = (1.0 - day01).clamp(0.0, 1.0);
-
-    double bump(double centerMin, double widthMin) {
-      final d = (m - centerMin).abs();
-      final x = (1.0 - (d / widthMin)).clamp(0.0, 1.0);
-      return x * x * (3 - 2 * x);
-    }
-
-    final dawnB = bump(6.75 * 60, 95);
-    final duskB = bump(18.50 * 60, 110);
-    final twilight = math.max(dawnB, duskB);
-    final duskMix = duskB / (dawnB + duskB + 1e-6);
-
-    Color blend(Color a, Color b, double t) => Color.lerp(a, b, t)!;
-
-    final ctaA = blend(const Color(0xFF8DF7FF), const Color(0xFF5B7CFF), night);
-    final ctaB = blend(const Color(0xFF5B7CFF), const Color(0xFFB07CFF), night);
-
-    final ctaWarmA = blend(
-      const Color(0xFFFFC38B),
-      const Color(0xFFFF8C4B),
-      duskMix,
-    );
-    final ctaWarmB = blend(
-      const Color(0xFFFF6B9A),
-      const Color(0xFFFF4D8D),
-      duskMix,
-    );
-
-    final cta = [
-      blend(ctaA, ctaWarmA, twilight),
-      blend(ctaB, ctaWarmB, twilight),
-    ];
-
-    final glow = blend(
-      const Color(0xFF2EC4FF),
-      const Color(0xFFFF8C4B),
-      twilight,
-    );
-
-    return _DayPalette(cta: cta, glow: glow, night: night);
-  }
-}
-
+// --- POPUP START SESSION ---
 enum _StartMode { timer, stopwatch }
+enum _Band { morning, afternoon, evening, night }
 
 class SessionStartSheet extends StatefulWidget {
-  const SessionStartSheet({
-    super.key,
-    required this.now,
-    required this.onClose,
-  });
-
+  const SessionStartSheet({super.key, required this.now, required this.onClose});
   final DateTime now;
   final VoidCallback onClose;
-
   @override
   State<SessionStartSheet> createState() => _SessionStartSheetState();
 }
 
 class _SessionStartSheetState extends State<SessionStartSheet> {
   _StartMode _mode = _StartMode.timer;
-
   final List<int> _timerMinutes = const [1, 10, 15, 20, 25, 30, 40, 50, 60];
   late int _timerIndex;
-
   late final FixedExtentScrollController _timerController;
 
   @override
   void initState() {
     super.initState();
     _timerIndex = _timerMinutes.indexOf(20);
-    if (_timerIndex < 0) _timerIndex = 0;
-    _timerController = FixedExtentScrollController(initialItem: _timerIndex);
+    _timerController = FixedExtentScrollController(initialItem: _timerIndex >= 0 ? _timerIndex : 0);
   }
 
   @override
-  void dispose() {
-    _timerController.dispose();
-    super.dispose();
-  }
-
-  void _setMode(_StartMode m) {
-    if (m == _mode) return;
-    setState(() => _mode = m);
-  }
+  void dispose() { _timerController.dispose(); super.dispose(); }
 
   (_Band, double) _bandNow() {
     final h = widget.now.hour;
@@ -668,68 +256,16 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
     return (base * mult).round();
   }
 
-  String _bandLabel(_Band b) {
-    switch (b) {
-      case _Band.morning:
-        return 'Mattina';
-      case _Band.afternoon:
-        return 'Pomeriggio';
-      case _Band.evening:
-        return 'Sera';
-      case _Band.night:
-        return 'Notte';
-    }
-  }
-
-  void _startTimer() {
-    final minutes = _timerMinutes[_timerIndex];
-    final nav = Navigator.of(context);
-    widget.onClose();
-    nav.push(
-      MaterialPageRoute(
-        builder: (_) => FocusSessionScreen(
-          type: FocusSessionType.timer,
-          duration: Duration(minutes: minutes),
-          displayMode: FocusDisplayMode.fullscreen,
-        ),
-      ),
-    );
-  }
-
-  void _startStopwatch() {
-    final nav = Navigator.of(context);
-    widget.onClose();
-    nav.push(
-      MaterialPageRoute(
-        builder: (_) => const FocusSessionScreen(
-          type: FocusSessionType.stopwatch,
-          duration: Duration(minutes: 60),
-          displayMode: FocusDisplayMode.fullscreen,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    final (band, mult) = _bandNow();
-    final bandText = mult > 1.0
-        ? 'Bonus ${_bandLabel(band)} +${((mult - 1) * 100).round()}%'
-        : _bandLabel(band);
-
     final r = BorderRadius.circular(38);
+    final selectedMinutes = _timerMinutes[_timerIndex];
+    final estimatedCoins = _estimateTimerCoins(selectedMinutes);
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: r,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
-            blurRadius: 36,
-            spreadRadius: -4,
-            offset: const Offset(0, 12),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 40, offset: const Offset(0, 12))],
       ),
       child: ClipRRect(
         borderRadius: r,
@@ -741,153 +277,93 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  const Color(0xFF1E2A38).withValues(alpha: 0.88),
-                  const Color(0xFF0F1217).withValues(alpha: 0.94),
-                ],
+                colors: [const Color(0xFF1E2A38).withValues(alpha: 0.88), const Color(0xFF0F1217).withValues(alpha: 0.94)],
               ),
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.16),
-                width: 1.4,
-                strokeAlign: BorderSide.strokeAlignInside, // ✅ Evita clipping angoli
-              ),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.16), width: 1.4, strokeAlign: BorderSide.strokeAlignInside),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Center(
-                    child: Container(
-                      width: 42,
-                      height: 4.5,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(99),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      const Text(
-                        'Avvia sessione',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.2,
-                        ),
-                      ),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(99),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.12),
-                          ),
-                        ),
-                        child: Text(
-                          bandText,
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.9),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.08),
-                      ),
-                    ),
-                    child: CupertinoSlidingSegmentedControl<_StartMode>(
-                      groupValue: _mode,
-                      backgroundColor: Colors.transparent,
-                      thumbColor: Colors.white.withValues(alpha: 0.14),
-                      onValueChanged: (v) => _setMode(v ?? _StartMode.timer),
-                      children: const {
-                        _StartMode.timer: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            'Timer',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14.5,
-                            ),
-                          ),
-                        ),
-                        _StartMode.stopwatch: Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text(
-                            'Cronometro',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 14.5,
-                            ),
-                          ),
-                        ),
-                      },
-                    ),
-                  ),
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 16),
-                  Expanded(
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 350),
-                      switchInCurve: Curves.easeOutQuart,
-                      switchOutCurve: Curves.easeInQuart,
-                      child: (_mode == _StartMode.timer)
-                          ? _TimerPanel(
-                              key: const ValueKey('timer'),
-                              controller: _timerController,
-                              minutes: _timerMinutes,
-                              selectedIndex: _timerIndex,
-                              onChanged: (i) => setState(() => _timerIndex = i),
-                              estimateCoins: _estimateTimerCoins,
-                            )
-                          : const _StopwatchPanel(
-                              key: ValueKey('stopwatch'),
-                            ),
-                    ),
-                  ),
+                  const Text('Avvia Sessione', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 16),
-                  _GlassPrimaryButton(
-                    label: _mode == _StartMode.timer
-                        ? 'Inizia Sessione'
-                        : 'Avvia Cronometro',
-                    onTap: _mode == _StartMode.timer
-                        ? _startTimer
-                        : _startStopwatch,
+                  CupertinoSlidingSegmentedControl<_StartMode>(
+                    groupValue: _mode,
+                    backgroundColor: Colors.black26,
+                    thumbColor: Colors.white12,
+                    onValueChanged: (v) => setState(() => _mode = v!),
+                    children: const {
+                      _StartMode.timer: Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('Timer', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
+                      _StartMode.stopwatch: Padding(padding: EdgeInsets.symmetric(horizontal: 20), child: Text('Cronometro', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800))),
+                    },
                   ),
-                  const SizedBox(height: 4),
-                  TextButton(
-                    onPressed: widget.onClose,
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 40),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: Text(
-                      'Annulla',
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.6),
-                        fontWeight: FontWeight.w700,
+                  const SizedBox(height: 20),
+                  if (_mode == _StartMode.timer)
+                    Expanded(
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: CupertinoPicker(
+                              scrollController: _timerController,
+                              itemExtent: 44,
+                              onSelectedItemChanged: (i) => setState(() => _timerIndex = i),
+                              children: _timerMinutes.map((m) => Center(child: Text('$m minuti', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)))).toList(),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(color: Colors.amber.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.withValues(alpha: 0.2))),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.stars_rounded, color: Colors.amber, size: 16),
+                                const SizedBox(width: 8),
+                                Text('Premio stimato: +$estimatedCoins monete', style: const TextStyle(color: Colors.amber, fontSize: 13, fontWeight: FontWeight.w900)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.timer_outlined, color: Colors.white24, size: 48),
+                            const SizedBox(height: 16),
+                            _infoRow(Icons.check_circle_outline_rounded, 'Minimo 15 minuti'),
+                            const SizedBox(height: 10),
+                            _infoRow(Icons.add_chart_rounded, '2 monete / min'),
+                            const SizedBox(height: 10),
+                            _infoRow(Icons.whatshot_rounded, 'Bonus orario attivo'),
+                          ],
+                        ),
                       ),
                     ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: () {
+                      final m = _timerMinutes[_timerIndex];
+                      Navigator.of(context).push(MaterialPageRoute(builder: (_) => FocusSessionScreen(type: _mode == _StartMode.timer ? FocusSessionType.timer : FocusSessionType.stopwatch, duration: Duration(minutes: _mode == _StartMode.timer ? m : 60), displayMode: FocusDisplayMode.fullscreen)));
+                      widget.onClose();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black,
+                      minimumSize: const Size(double.infinity, 54),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+                      elevation: 0,
+                    ),
+                    child: const Text('INIZIA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
                   ),
+                  TextButton(onPressed: widget.onClose, child: const Text('Annulla', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.w700))),
                 ],
               ),
             ),
@@ -896,218 +372,15 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
       ),
     );
   }
-}
 
-class _TimerPanel extends StatelessWidget {
-  const _TimerPanel({
-    super.key,
-    required this.controller,
-    required this.minutes,
-    required this.selectedIndex,
-    required this.onChanged,
-    required this.estimateCoins,
-  });
-
-  final FixedExtentScrollController controller;
-  final List<int> minutes;
-  final int selectedIndex;
-  final ValueChanged<int> onChanged;
-  final int Function(int minutes) estimateCoins;
-
-  @override
-  Widget build(BuildContext context) {
-    final selMin = minutes[selectedIndex];
-    final coins = estimateCoins(selMin);
-
-    return Column(
-      key: key,
-      children: [
-        Expanded(
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-            ),
-            child: CupertinoPicker(
-              scrollController: controller,
-              itemExtent: 46,
-              magnification: 1.15,
-              squeeze: 1.0,
-              useMagnifier: true,
-              onSelectedItemChanged: onChanged,
-              selectionOverlay: Container(
-                decoration: BoxDecoration(
-                  border: Border.symmetric(
-                    horizontal: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      width: 0.5,
-                    ),
-                  ),
-                ),
-              ),
-              children: minutes.map((m) {
-                final label = (m == 1) ? '1 minuto' : '$m minuti';
-                return Center(
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.stars_rounded, size: 16, color: Colors.amber.withValues(alpha: 0.9)),
-              const SizedBox(width: 8),
-              Text(
-                'Premio stimato: +$coins monete',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.85),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StopwatchPanel extends StatelessWidget {
-  const _StopwatchPanel({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: key,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.timer_outlined,
-            size: 40,
-            color: Colors.white.withValues(alpha: 0.3),
-          ),
-          const SizedBox(height: 16),
-          _StopwatchInfoLine(
-            icon: Icons.check_circle_outline_rounded,
-            text: 'Soglia minima: 15 minuti',
-          ),
-          const SizedBox(height: 10),
-          _StopwatchInfoLine(
-            icon: Icons.add_chart_rounded,
-            text: '2 monete/min fino a 60 min',
-          ),
-          const SizedBox(height: 10),
-          _StopwatchInfoLine(
-            icon: Icons.info_outline_rounded,
-            text: 'Nessun limite oltre i 60 min',
-            isDim: true,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StopwatchInfoLine extends StatelessWidget {
-  const _StopwatchInfoLine({
-    required this.icon,
-    required this.text,
-    this.isDim = false,
-  });
-  final IconData icon;
-  final String text;
-  final bool isDim;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _infoRow(IconData icon, String text) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, size: 16, color: Colors.white.withValues(alpha: isDim ? 0.4 : 0.7)),
+        Icon(icon, color: Colors.white54, size: 16),
         const SizedBox(width: 10),
-        Text(
-          text,
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: isDim ? 0.5 : 0.9),
-            fontSize: 14,
-            fontWeight: isDim ? FontWeight.w600 : FontWeight.w800,
-          ),
-        ),
+        Text(text, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w700)),
       ],
     );
   }
 }
-
-class _GlassPrimaryButton extends StatelessWidget {
-  const _GlassPrimaryButton({required this.label, required this.onTap});
-
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(22),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          gradient: LinearGradient(
-            colors: [
-              Colors.white.withValues(alpha: 0.15),
-              Colors.white.withValues(alpha: 0.08),
-            ],
-          ),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
-              fontSize: 16,
-              letterSpacing: 0.5,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-enum _Band { morning, afternoon, evening, night }
