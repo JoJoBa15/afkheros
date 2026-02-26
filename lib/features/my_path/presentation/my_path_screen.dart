@@ -160,7 +160,7 @@ class _ZenCoreCTAState extends State<_ZenCoreCTA> with TickerProviderStateMixin 
                                     shadows: [Shadow(color: Colors.cyanAccent.withValues(alpha: 0.5), blurRadius: 10)],
                                   ),
                                 ),
-                                Text('Tocca per iniziare', style: TextStyle(color: Colors.white38, fontSize: diameter * 0.07, fontWeight: FontWeight.w700)),
+                                Text('Tocca per iniziare', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: diameter * 0.07, fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -249,6 +249,15 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
     return (_Band.night, 1.00);
   }
 
+  String _bandLabel(_Band b) {
+    switch (b) {
+      case _Band.morning: return 'Mattina';
+      case _Band.afternoon: return 'Pomeriggio';
+      case _Band.evening: return 'Sera';
+      case _Band.night: return 'Notte';
+    }
+  }
+
   int _estimateTimerCoins(int minutes) {
     final (_, mult) = _bandNow();
     final x = minutes / 60.0;
@@ -261,6 +270,10 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
     final r = BorderRadius.circular(38);
     final selectedMinutes = _timerMinutes[_timerIndex];
     final estimatedCoins = _estimateTimerCoins(selectedMinutes);
+    final (band, mult) = _bandNow();
+    final bandText = mult > 1.0
+        ? 'Bonus ${_bandLabel(band)} +${((mult - 1) * 100).round()}%'
+        : _bandLabel(band);
 
     return Container(
       decoration: BoxDecoration(
@@ -282,12 +295,26 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
               border: Border.all(color: Colors.white.withValues(alpha: 0.16), width: 1.4, strokeAlign: BorderSide.strokeAlignInside),
             ),
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24), // Aumentato padding bottom dato che non c'è più Annulla
               child: Column(
                 children: [
                   Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 16),
-                  const Text('Avvia Sessione', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Avvia Sessione', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(99),
+                          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                        ),
+                        child: Text(bandText, style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 11, fontWeight: FontWeight.w800)),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   CupertinoSlidingSegmentedControl<_StartMode>(
                     groupValue: _mode,
@@ -331,6 +358,7 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
                   else
                     Expanded(
                       child: Container(
+                        width: double.infinity,
                         padding: const EdgeInsets.all(20),
                         decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.03), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withValues(alpha: 0.05))),
                         child: Column(
@@ -363,7 +391,6 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
                     ),
                     child: const Text('INIZIA', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.0)),
                   ),
-                  TextButton(onPressed: widget.onClose, child: const Text('Annulla', style: TextStyle(color: Colors.white38, fontWeight: FontWeight.w700))),
                 ],
               ),
             ),
@@ -377,9 +404,9 @@ class _SessionStartSheetState extends State<SessionStartSheet> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, color: Colors.white54, size: 16),
+        Icon(icon, color: Colors.cyanAccent.withValues(alpha: 0.6), size: 16),
         const SizedBox(width: 10),
-        Text(text, style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w700)),
+        Text(text, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700)),
       ],
     );
   }

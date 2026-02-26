@@ -1,6 +1,6 @@
-name: afkheroes
-description: "Concentrati! AFK Heroes è un gioco idle RPG che ti permette di goderti l'avventura senza stress concentrandoti su te stesso!"
-version: 0.0.1+1
+name: focus
+description: "FOCUS! Mai sognato di concentrarti senza distrazioni? Prova oggi quest'app con tutte le funzionalità di cui necessiti!"
+version: 0.1.0+1
 
 environment:
   sdk: ^3.11.0
